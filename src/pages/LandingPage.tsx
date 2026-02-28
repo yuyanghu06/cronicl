@@ -1,13 +1,15 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
+import { useAuth } from "@/lib/auth.tsx";
 import { ScanlineOverlay } from "@/components/ui/ScanlineOverlay";
 import { BackgroundTexture } from "@/components/landing/BackgroundTexture";
 import { PowerOnSequence } from "@/components/landing/PowerOnSequence";
 
 export function LandingPage() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
-  const handleAction = () => navigate("/home");
+  const handleAction = () => navigate(isAuthenticated ? "/home" : "/login");
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
