@@ -10,10 +10,10 @@ export function apiNodesToFrontend(apiNodes: ApiNode[]): TimelineNode[] {
     id: n.id,
     parentId: n.parentId,
     label: n.label ?? n.title,
-    plotSummary: n.content,
+    plotSummary: n.content ?? "",
     metadata: {
       createdAt: n.createdAt,
-      wordCount: n.content.split(/\s+/).filter(Boolean).length,
+      wordCount: (n.content ?? "").split(/\s+/).filter(Boolean).length,
     },
     position: { x: n.positionX, y: n.positionY },
     connections: [],

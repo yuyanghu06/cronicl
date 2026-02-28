@@ -102,15 +102,13 @@ export function AIChatRoom({ onMessageCountChange }: AIChatRoomProps) {
           system_prompt: systemPrompt,
         })
           .then(async (timeline) => {
-            // Optionally create a root node
+            // Create root node — let errors propagate
             await createNode(timeline.id, {
               title: "ACT I — OPENING",
               content: `Story concept: ${concept}`,
               position_x: 80,
               position_y: 200,
-            }).catch((err) =>
-              console.error("Failed to create root node:", err)
-            );
+            });
 
             setCreatedTimelineId(timeline.id);
             setIsProcessing(false);
@@ -119,12 +117,12 @@ export function AIChatRoom({ onMessageCountChange }: AIChatRoomProps) {
             setTimelineReady(true);
           })
           .catch((err) => {
-            console.error("Failed to create timeline:", err);
+            console.error("Failed to create timeline or root node:", err);
             setIsProcessing(false);
             setProcessingError(err.message ?? "Failed to create timeline");
             addMessage(
               "ai",
-              `ERROR: Failed to create timeline — ${err.message ?? "unknown error"}. Please try again.`
+              `ERROR: ${err.message ?? "unknown error"}. Please try again.`
             );
             // Allow retry by reverting to stage 3
             setStage(3);
