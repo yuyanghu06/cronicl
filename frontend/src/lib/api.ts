@@ -1,16 +1,13 @@
 const BASE_URL = import.meta.env.VITE_API_URL ?? "";
-const DEV_TOKEN = import.meta.env.VITE_DEV_TOKEN as string | undefined;
-
-function headers(): HeadersInit {
-  const h: HeadersInit = { "Content-Type": "application/json" };
-  if (DEV_TOKEN) h["Authorization"] = `Bearer ${DEV_TOKEN}`;
-  return h;
-}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
-    headers: { ...headers(), ...init?.headers },
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -23,7 +20,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface ApiTimeline {
   id: string;
-  userId: string;
+  userId?: string;
   title: string;
   summary: string | null;
   systemPrompt: string | null;

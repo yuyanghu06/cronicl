@@ -90,25 +90,16 @@ export function EditorPage() {
       const fromNode = nodes.find((n) => n.id === fromNodeId);
       if (!fromNode) throw new Error("Source node not found");
 
-      // 1. Try AI suggestion; fall back to user description if AI fails
-      let title = description.slice(0, 40);
-      let content = description;
+      // 1. Call Gemini via backend to generate AI suggestion
+      const aiResult = await suggestFromTimeline({
+        timelineId,
+        nodeId: fromNodeId,
+        numSuggestions: 1,
+      });
 
-      try {
-        const aiResult = await suggestFromTimeline({
-          timelineId,
-          nodeId: fromNodeId,
-          numSuggestions: 1,
-        });
-
-        const ghost = aiResult.ghost_nodes[0];
-        if (ghost) {
-          title = ghost.title;
-          content = ghost.summary;
-        }
-      } catch (err) {
-        console.warn("AI suggestion failed, using user description:", err);
-      }
+      const ghost = aiResult.ghost_nodes[0];
+      const title = ghost?.title ?? description.slice(0, 40);
+      const content = ghost?.summary ?? description;
 
       // 2. Compute position with collision avoidance
       const candidateX = fromNode.position.x + 240 + 80;
