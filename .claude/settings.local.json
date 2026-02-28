@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add .gitignore && git status)",
+      "Bash(git push origin master:main)",
+      "Bash(git fetch origin && git log --oneline -10 master origin/main --graph)",
+      "Bash(git push --force origin master:main)",
+      "Bash(cd /Users/kevin/Downloads/cronicl/frontend && npx tsc --noEmit 2>&1 | head -20)",
+      "Bash(npx tsc --noEmit 2>&1)",
+      "Bash(git -C /Users/kevin/Downloads/cronicl show HEAD:frontend/src/App.tsx 2>/dev/null || git -C /Users/kevin/Downloads/cronicl show HEAD~1:frontend/src/App.tsx 2>/dev/null)",
+      "Bash(git -C /Users/kevin/Downloads/cronicl show HEAD:frontend/src/components/NavBar.tsx 2>/dev/null)",
+      "Bash(npx tsc -b --noEmit 2>&1)",
+      "Bash(npx tsc -b 2>&1)",
+      "Bash(npx tsc -b 2>&1; echo \"EXIT: $?\")",
+      "Bash(npx vite build 2>&1)",
+      "mcp__ide__getDiagnostics",
+      "Bash(cd /Users/kevin/Downloads/cronicl/frontend && npm run build 2>&1)",
+      "Bash(timeout 5 npm run dev 2>&1 || true)",
+      "Bash(git stash)",
+      "Bash(git push origin master:main --force)",
+      "Bash(git push origin master:frontend)",
+      "Bash(git push origin master:frontend --force)",
+      "Bash(git pull origin frontend)",
+      "Bash(bun run dev)",
+      "Bash(bun install)",
+      "Bash(git pull origin main)",
+      "Bash(git ls-tree -r --name-only origin/backend | head -20)",
+      "Bash(chmod +x start.sh)",
+      "Bash(git pull)",
+      "Bash(git fetch && git checkout frontend)",
+      "Bash(git checkout -b frontend origin/frontend)",
+      "Bash(git add frontend/ && git rm --cached eslint.config.js index.html package.json bun.lock 'public/' 'src/' 'tsconfig.app.json' 'tsconfig.json' 'tsconfig.node.json' 'vite.config.ts' 2>/dev/null || git add -A)"
+    ]
+  }
+}
