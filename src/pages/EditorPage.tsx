@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useParams } from "react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { SidePanel } from "@/components/layout/SidePanel";
@@ -24,13 +24,74 @@ export function EditorPage() {
   const [projectName, setProjectName] = useState("LOADING...");
   const [isLoading, setIsLoading] = useState(true);
   const timelineIdRef = useRef<string | null>(null);
+  const abortRef = useRef(false);
+  const generatingRef = useRef(new Set<string>());
 
-  // Load timeline data from backend (or demo data for the example board)
+  // --- Image generation ---
+
+  const generateImageForNode = useCallback(async (nodeId: string) => {
+    if (generatingRef.current.has(nodeId)) return;
+    generatingRef.current.add(nodeId);
+
+    // Read current node from state
+    let prompt = "";
+    setNodes((prev) => {
+      const node = prev.find((n) => n.id === nodeId);
+      if (node) {
+        prompt = [node.label, node.plotSummary].filter(Boolean).join(" — ");
+      }
+      return prev.map((n) =>
+        n.id === nodeId ? { ...n, status: "generating" as const } : n
+      );
+    });
+
+    if (!prompt) prompt = "A cinematic storyboard frame";
+
+    try {
+      const res = await api.post<{ image: string; mimeType: string }>(
+        "/api/generate/image",
+        { prompt }
+      );
+      if (abortRef.current) return;
+
+      const dataUrl = `data:${res.mimeType};base64,${res.image}`;
+
+      setNodes((prev) =>
+        prev.map((n) =>
+          n.id === nodeId
+            ? { ...n, imageUrl: dataUrl, status: "draft" as const }
+            : n
+        )
+      );
+
+      // Persist to backend
+      const tid = timelineIdRef.current;
+      if (tid) {
+        api
+          .patch(`/api/timelines/${tid}/nodes/${nodeId}`, { image_url: dataUrl })
+          .catch(() => {});
+      }
+    } catch {
+      if (abortRef.current) return;
+      // Revert to draft so FRAME_PENDING shows again
+      setNodes((prev) =>
+        prev.map((n) =>
+          n.id === nodeId ? { ...n, status: "draft" as const } : n
+        )
+      );
+    } finally {
+      generatingRef.current.delete(nodeId);
+    }
+  }, []);
+
+  // --- Load timeline data ---
+
   useEffect(() => {
     if (!projectId) return;
+    abortRef.current = false;
 
     if (projectId === DEMO_PROJECT_ID) {
-      timelineIdRef.current = null; // demo — no backend persistence
+      timelineIdRef.current = null;
       setProjectName(DEMO_PROJECT.name);
       setNodes(DEMO_TIMELINE);
       setIsLoading(false);
@@ -45,18 +106,32 @@ export function EditorPage() {
 
         timelineIdRef.current = timeline.id;
         setProjectName(timeline.title);
-        setNodes(mapBackendNodesToTimelineNodes(timeline.nodes ?? []));
+
+        const mapped = mapBackendNodesToTimelineNodes(timeline.nodes ?? []);
+        setNodes(mapped);
+        setIsLoading(false);
+
+        // Auto-generate images for nodes that don't have one
+        const missing = mapped.filter((n) => !n.imageUrl);
+        for (const node of missing) {
+          if (cancelled || abortRef.current) break;
+          await generateImageForNode(node.id);
+          // Respect rate limits (~10 req/min → ~6s gap, use 1.5s as conservative)
+          await new Promise((r) => setTimeout(r, 1500));
+        }
       } catch {
         if (cancelled) return;
         setProjectName("Unknown Project");
         setNodes([]);
-      } finally {
-        if (!cancelled) setIsLoading(false);
+        setIsLoading(false);
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [projectId]);
+    return () => {
+      cancelled = true;
+      abortRef.current = true;
+    };
+  }, [projectId, generateImageForNode]);
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedNodeId) ?? null,
@@ -149,6 +224,9 @@ export function EditorPage() {
     });
 
     setSelectedNodeId(newNodeId);
+
+    // Auto-generate image for the new branch node
+    generateImageForNode(newNodeId);
   };
 
   return (
@@ -186,7 +264,7 @@ export function EditorPage() {
             nodes={nodes}
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
-            onGenerateImage={() => {}} // Placeholder for now
+            onGenerateImage={generateImageForNode}
           />
         )}
 

@@ -14,6 +14,7 @@ export interface BackendNode {
   positionX: number;
   positionY: number;
   sortOrder: number;
+  imageUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,6 +80,7 @@ export function mapBackendNodesToTimelineNodes(
       connections: childrenMap.get(node.id) ?? [],
       type: "scene" as const,
       status,
+      imageUrl: node.imageUrl ?? undefined,
     };
   });
 }
