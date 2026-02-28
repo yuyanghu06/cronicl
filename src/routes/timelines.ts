@@ -26,26 +26,38 @@ async function verifyTimelineOwnership(timelineId: string, userId: string) {
 
 // POST / — Create timeline
 app.post('/', async (c) => {
-  const { sub: userId } = c.get('user');
-  const body = await c.req.json();
+  console.log('[Timelines API] POST / - Create timeline');
+  try {
+    const { sub: userId } = c.get('user');
+    console.log('[Timelines API] User ID:', userId);
+    
+    const body = await c.req.json();
+    console.log('[Timelines API] Request body:', JSON.stringify(body));
 
-  if (!body.title || typeof body.title !== 'string') {
-    return c.json({ error: 'title is required' }, 400);
+    if (!body.title || typeof body.title !== 'string') {
+      console.log('[Timelines API] Validation failed: title is required');
+      return c.json({ error: 'title is required' }, 400);
+    }
+
+    console.log('[Timelines API] Inserting timeline into database...');
+    const [timeline] = await db
+      .insert(timelines)
+      .values({
+        userId,
+        title: body.title,
+        summary: body.summary ?? null,
+        systemPrompt: body.system_prompt ?? null,
+        tags: body.tags ?? null,
+        status: body.status ?? 'draft',
+      })
+      .returning();
+
+    console.log('[Timelines API] Timeline created:', timeline.id);
+    return c.json(timeline, 201);
+  } catch (error) {
+    console.error('[Timelines API] Error creating timeline:', error);
+    return c.json({ error: 'Failed to create timeline', details: String(error) }, 500);
   }
-
-  const [timeline] = await db
-    .insert(timelines)
-    .values({
-      userId,
-      title: body.title,
-      summary: body.summary ?? null,
-      systemPrompt: body.system_prompt ?? null,
-      tags: body.tags ?? null,
-      status: body.status ?? 'draft',
-    })
-    .returning();
-
-  return c.json(timeline, 201);
 });
 
 // GET / — List user's timelines

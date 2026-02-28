@@ -23,12 +23,34 @@ export interface GenerateImageResponse {
   model: string;
 }
 
+function logRequest(endpoint: string, model: string, prompt: string) {
+  console.log(`[Gemini API] Request to ${endpoint}`);
+  console.log(`[Gemini API] Model: ${model}`);
+  console.log(`[Gemini API] Prompt length: ${prompt.length} chars`);
+  console.log(`[Gemini API] Prompt preview: ${prompt.slice(0, 200)}...`);
+}
+
+function logResponse(endpoint: string, status: number, body?: string) {
+  console.log(`[Gemini API] Response from ${endpoint}: ${status}`);
+  if (body) {
+    console.log(`[Gemini API] Response body preview: ${body.slice(0, 500)}`);
+  }
+}
+
+function logError(endpoint: string, error: unknown) {
+  console.error(`[Gemini API] Error from ${endpoint}:`, error);
+}
+
 export async function generateImage(req: GenerateImageRequest): Promise<GenerateImageResponse> {
   if (!env.GEMINI_API_KEY) {
+    console.error('[Gemini API] GEMINI_API_KEY not configured');
     throw new Error('AI provider not configured');
   }
 
   const model = req.model ?? 'gemini-2.0-flash-preview-image-generation';
+  const endpoint = `generateContent (image)`;
+  
+  logRequest(endpoint, model, req.prompt);
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -44,12 +66,15 @@ export async function generateImage(req: GenerateImageRequest): Promise<Generate
     }
   );
 
+  const responseText = await response.text();
+  logResponse(endpoint, response.status, responseText);
+
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Image generation failed: ${error}`);
+    logError(endpoint, responseText);
+    throw new Error(`Image generation failed: ${responseText}`);
   }
 
-  const data = await response.json();
+  const data = JSON.parse(responseText);
   const parts = data.candidates?.[0]?.content?.parts ?? [];
 
   let image = '';
@@ -66,9 +91,11 @@ export async function generateImage(req: GenerateImageRequest): Promise<Generate
   }
 
   if (!image) {
+    logError(endpoint, 'No image returned from model');
     throw new Error('No image returned from model');
   }
 
+  console.log(`[Gemini API] Image generated successfully, mimeType: ${mimeType}`);
   return { image, mimeType, text, model };
 }
 
@@ -90,10 +117,14 @@ export async function generateStructuredText<T>(
   req: GenerateStructuredTextRequest
 ): Promise<GenerateStructuredTextResponse<T>> {
   if (!env.GEMINI_API_KEY) {
+    console.error('[Gemini API] GEMINI_API_KEY not configured');
     throw new Error('AI provider not configured');
   }
 
   const model = req.model ?? 'gemini-2.0-flash';
+  const endpoint = `generateContent (structured)`;
+  
+  logRequest(endpoint, model, req.prompt);
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -110,25 +141,34 @@ export async function generateStructuredText<T>(
     }
   );
 
+  const responseText = await response.text();
+  logResponse(endpoint, response.status, responseText);
+
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`AI generation failed: ${error}`);
+    logError(endpoint, responseText);
+    throw new Error(`AI generation failed: ${responseText}`);
   }
 
-  const responseData = await response.json();
+  const responseData = JSON.parse(responseText);
   const raw = responseData.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+  console.log(`[Gemini API] Raw response text: ${raw.slice(0, 300)}...`);
 
   // Parse JSON with fallback chain
   let data: T;
   try {
     data = JSON.parse(raw);
-  } catch {
+    console.log(`[Gemini API] Successfully parsed JSON response`);
+  } catch (parseError) {
+    console.error(`[Gemini API] JSON parse error:`, parseError);
     // Fallback: extract JSON from markdown fences
     const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (fenceMatch) {
       try {
         data = JSON.parse(fenceMatch[1].trim());
-      } catch {
+        console.log(`[Gemini API] Successfully parsed JSON from markdown fence`);
+      } catch (fenceParseError) {
+        console.error(`[Gemini API] Fence JSON parse error:`, fenceParseError);
         throw new Error(`Failed to parse AI response as JSON. Raw output: ${raw.slice(0, 500)}`);
       }
     } else {
@@ -143,11 +183,17 @@ export async function generateStructuredText<T>(
 
 export async function generateText(req: GenerateTextRequest): Promise<GenerateTextResponse> {
   if (!env.GEMINI_API_KEY) {
+    console.error('[Gemini API] GEMINI_API_KEY not configured');
     throw new Error('AI provider not configured');
   }
 
+  const model = req.model ?? 'gemini-pro';
+  const endpoint = `generateContent (text)`;
+  
+  logRequest(endpoint, model, req.prompt);
+
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${req.model ?? 'gemini-pro'}:generateContent?key=${env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -160,16 +206,21 @@ export async function generateText(req: GenerateTextRequest): Promise<GenerateTe
     }
   );
 
+  const responseText = await response.text();
+  logResponse(endpoint, response.status, responseText);
+
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`AI generation failed: ${error}`);
+    logError(endpoint, responseText);
+    throw new Error(`AI generation failed: ${responseText}`);
   }
 
-  const data = await response.json();
+  const data = JSON.parse(responseText);
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+  console.log(`[Gemini API] Text generated successfully, length: ${text.length} chars`);
 
   return {
     text,
-    model: req.model ?? 'gemini-pro',
+    model,
   };
 }
