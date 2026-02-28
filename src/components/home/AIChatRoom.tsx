@@ -7,7 +7,20 @@ import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { aiResponses, getInitialMessage } from "@/data/ai-responses";
 import { api } from "@/lib/api.ts";
-import type { BackendTimeline } from "@/lib/mappers.ts";
+import type { BackendTimeline, BackendNode } from "@/lib/mappers.ts";
+
+interface GhostNode {
+  title: string;
+  summary: string;
+  tone: string;
+  direction_type: string;
+}
+
+interface AISuggestResponse {
+  ghost_nodes: GhostNode[];
+  inline_suggestions: unknown[];
+  model: string;
+}
 
 interface Message {
   id: string;
@@ -28,11 +41,12 @@ export function AIChatRoom({
   const [stage, setStage] = useState(-1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [timelineReady, setTimelineReady] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Store user messages for timeline creation context
   const userMessagesRef = useRef<string[]>([]);
+  // Store created timeline ID so "OPEN TIMELINE" just navigates
+  const createdTimelineIdRef = useRef<string | null>(null);
 
   const addMessage = useCallback(
     (variant: "ai" | "user", content: string) => {
@@ -81,41 +95,91 @@ export function AIChatRoom({
           setStage(nextStage);
         }, 800);
       } else if (nextStage === 4) {
-        // Processing state
+        // Processing state — create timeline + generate nodes via AI
         setStage(4);
         setIsProcessing(true);
+        setCreateError(null);
 
-        setTimeout(() => {
-          setIsProcessing(false);
-          addMessage("ai", aiResponses[5].message);
-          setStage(5);
-          setTimelineReady(true);
-        }, 2800);
+        (async () => {
+          try {
+            const msgs = userMessagesRef.current;
+            const title = msgs[0]?.slice(0, 100) || "Untitled Project";
+            const summary = msgs.slice(1, 3).join(" ") || undefined;
+            const systemPrompt = msgs.join("\n\n") || undefined;
+
+            // 1. Create the timeline
+            const timeline = await api.post<BackendTimeline>("/api/timelines", {
+              title,
+              summary,
+              system_prompt: systemPrompt,
+            });
+
+            // 2. Try AI suggestion for ghost nodes
+            let ghostNodes: GhostNode[] = [];
+            try {
+              const aiResult = await api.post<AISuggestResponse>("/ai/suggest", {
+                system_prompt: systemPrompt,
+                active_path: [{ node_id: "root", content: msgs[0] || title }],
+                num_suggestions: 8,
+              });
+              ghostNodes = aiResult.ghost_nodes ?? [];
+            } catch {
+              // AI unavailable — will use placeholders below
+            }
+
+            // 3. Persist nodes — either AI-generated or placeholder
+            const nodesToCreate = ghostNodes.length > 0
+              ? ghostNodes.map((g) => ({ title: g.title, content: g.summary }))
+              : [
+                  { title: "Act I — Setup", content: "Introduce the world and protagonist." },
+                  { title: "Inciting Incident", content: "The event that sets the story in motion." },
+                  { title: "Act II — Confrontation", content: "Rising tension and obstacles." },
+                ];
+
+            let prevNodeId: string | null = null;
+            for (let i = 0; i < nodesToCreate.length; i++) {
+              const n = nodesToCreate[i];
+              const created = await api.post<BackendNode>(
+                `/api/timelines/${timeline.id}/nodes`,
+                {
+                  title: n.title,
+                  label: n.title,
+                  content: n.content,
+                  parent_id: prevNodeId,
+                  position_x: 200 + i * 480,
+                  position_y: 300,
+                  sort_order: i,
+                },
+              );
+              prevNodeId = created.id;
+            }
+
+            createdTimelineIdRef.current = timeline.id;
+            const nodeCount = nodesToCreate.length;
+            const source = ghostNodes.length > 0 ? "AI-generated" : "placeholder";
+
+            setIsProcessing(false);
+            addMessage(
+              "ai",
+              `TIMELINE READY.\n\n${nodeCount} nodes generated (${source}). Narrative structure initialized.\n\nYour story architecture is ready for review.`,
+            );
+            setStage(5);
+            setTimelineReady(true);
+          } catch {
+            setIsProcessing(false);
+            setCreateError("Failed to create timeline. Try again.");
+            setStage(3); // Allow retry
+          }
+        })();
       }
     },
-    [stage, addMessage]
+    [stage, addMessage],
   );
 
-  const handleOpenTimeline = useCallback(async () => {
-    setIsCreating(true);
-    setCreateError(null);
-
-    try {
-      const msgs = userMessagesRef.current;
-      const title = msgs[0]?.slice(0, 100) || "Untitled Project";
-      const summary = msgs.slice(1, 3).join(" ") || undefined;
-      const systemPrompt = msgs.join("\n\n") || undefined;
-
-      const timeline = await api.post<BackendTimeline>("/api/timelines", {
-        title,
-        summary,
-        system_prompt: systemPrompt,
-      });
-
-      onTimelineCreated?.(timeline.id);
-    } catch {
-      setCreateError("Failed to create timeline. Try again.");
-      setIsCreating(false);
+  const handleOpenTimeline = useCallback(() => {
+    const timelineId = createdTimelineIdRef.current;
+    if (timelineId) {
+      onTimelineCreated?.(timelineId);
     }
   }, [onTimelineCreated]);
 
@@ -175,9 +239,8 @@ export function AIChatRoom({
               variant="primary"
               size="sm"
               onClick={handleOpenTimeline}
-              disabled={isCreating}
             >
-              {isCreating ? "CREATING..." : "OPEN TIMELINE"}
+              OPEN TIMELINE
             </Button>
             {createError && (
               <SyntMonoText className="text-xs text-red mt-2 block">

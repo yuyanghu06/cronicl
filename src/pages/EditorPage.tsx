@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams } from "react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { SidePanel } from "@/components/layout/SidePanel";
@@ -8,8 +8,13 @@ import { CourierText } from "@/components/ui/CourierText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { GitBranch, Save } from "lucide-react";
 import type { TimelineNode } from "@/types/node.ts";
-import { getTimelineForProject, generatePlaceholderTimeline } from "@/data/timeline-manager";
-import { mockProjects } from "@/data/mock-projects";
+import { api } from "@/lib/api.ts";
+import {
+  mapBackendNodesToTimelineNodes,
+  mapNodeToBackendUpdate,
+  mapNodeToBackendCreate,
+} from "@/lib/mappers.ts";
+import type { BackendTimeline, BackendNode } from "@/lib/mappers.ts";
 
 export function EditorPage() {
   const { projectId } = useParams();
@@ -17,23 +22,31 @@ export function EditorPage() {
   const [nodes, setNodes] = useState<TimelineNode[]>([]);
   const [projectName, setProjectName] = useState("LOADING...");
   const [isLoading, setIsLoading] = useState(true);
+  const timelineIdRef = useRef<string | null>(null);
 
-  // Load timeline data
+  // Load timeline data from backend
   useEffect(() => {
     if (!projectId) return;
-    
-    const project = mockProjects.find(p => p.id === projectId);
-    const name = project?.name || "Unknown Project";
-    
-    // Get timeline for this project, or generate placeholder
-    let timelineNodes = getTimelineForProject(projectId);
-    if (timelineNodes.length === 0) {
-      timelineNodes = generatePlaceholderTimeline(projectId, name);
-    }
-    
-    setProjectName(name);
-    setNodes(timelineNodes);
-    setIsLoading(false);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const timeline = await api.get<BackendTimeline>(`/api/timelines/${projectId}`);
+        if (cancelled) return;
+
+        timelineIdRef.current = timeline.id;
+        setProjectName(timeline.title);
+        setNodes(mapBackendNodesToTimelineNodes(timeline.nodes ?? []));
+      } catch {
+        if (cancelled) return;
+        setProjectName("Unknown Project");
+        setNodes([]);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [projectId]);
 
   const selectedNode = useMemo(
@@ -49,9 +62,15 @@ export function EditorPage() {
           : n
       )
     );
+
+    // Persist to backend (fire-and-forget)
+    const tid = timelineIdRef.current;
+    if (tid) {
+      api.patch(`/api/timelines/${tid}/nodes/${nodeId}`, mapNodeToBackendUpdate(updates)).catch(() => {});
+    }
   };
 
-  const onGenerateBranch = (fromNodeId: string, description: string) => {
+  const onGenerateBranch = async (fromNodeId: string, description: string) => {
     const fromNode = nodes.find((n) => n.id === fromNodeId);
     if (!fromNode) return;
 
@@ -71,14 +90,38 @@ export function EditorPage() {
       candidateY += 480;
     }
 
-    const newNodeId = `${fromNodeId}_branch_${Date.now()}`;
+    const label = description.slice(0, 40) || "New Branch";
+    const content = description || "A new branch in the story...";
+
+    // Try to persist to backend and get a real UUID
+    const tid = timelineIdRef.current;
+    let newNodeId = `${fromNodeId}_branch_${Date.now()}`;
+
+    if (tid) {
+      try {
+        const created = await api.post<BackendNode>(
+          `/api/timelines/${tid}/nodes`,
+          mapNodeToBackendCreate({
+            label,
+            plotSummary: content,
+            position: { x: candidateX, y: candidateY },
+            status: "draft",
+            parentId: fromNodeId,
+          }),
+        );
+        newNodeId = created.id;
+      } catch {
+        // Use client-generated ID as fallback
+      }
+    }
+
     const newNode: TimelineNode = {
       id: newNodeId,
-      label: description.slice(0, 40) || "New Branch",
-      plotSummary: description || "A new branch in the story...",
+      label,
+      plotSummary: content,
       metadata: {
         createdAt: new Date().toISOString().slice(0, 16).replace("T", " "),
-        wordCount: description.trim().split(/\s+/).length,
+        wordCount: content.trim().split(/\s+/).length,
       },
       position: { x: candidateX, y: candidateY },
       connections: [],

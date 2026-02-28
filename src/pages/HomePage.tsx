@@ -4,7 +4,9 @@ import { AppShell } from "@/components/layout/AppShell";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { AIChatRoom } from "@/components/home/AIChatRoom";
-import { mockProjects } from "@/data/mock-projects";
+import { api } from "@/lib/api.ts";
+import { mapBackendToProject } from "@/lib/mappers.ts";
+import type { BackendTimelineListItem } from "@/lib/mappers.ts";
 import type { Project } from "@/types/project.ts";
 import { PanelLeftClose, PanelLeftOpen, BookOpen } from "lucide-react";
 
@@ -18,17 +20,24 @@ export function HomePage() {
     () => `SES-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
   );
 
-  useEffect(() => {
-    // Simulate loading delay then use mock data
-    const timer = setTimeout(() => {
-      setProjects(mockProjects);
+  const loadProjects = async () => {
+    setIsLoadingProjects(true);
+    try {
+      const timelines = await api.get<BackendTimelineListItem[]>("/api/timelines");
+      setProjects(timelines.map(mapBackendToProject));
+    } catch {
+      setProjects([]);
+    } finally {
       setIsLoadingProjects(false);
-    }, 500);
+    }
+  };
 
-    return () => clearTimeout(timer);
+  useEffect(() => {
+    loadProjects();
   }, []);
 
   const handleTimelineCreated = (timelineId: string) => {
+    loadProjects();
     navigate(`/editor/${timelineId}`);
   };
 
