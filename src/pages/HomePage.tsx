@@ -8,6 +8,7 @@ import { api } from "@/lib/api.ts";
 import { mapBackendToProject } from "@/lib/mappers.ts";
 import type { BackendTimelineListItem } from "@/lib/mappers.ts";
 import type { Project } from "@/types/project.ts";
+import { DEMO_PROJECT } from "@/data/demo";
 import { PanelLeftClose, PanelLeftOpen, BookOpen } from "lucide-react";
 
 export function HomePage() {
@@ -24,7 +25,7 @@ export function HomePage() {
     setIsLoadingProjects(true);
     try {
       const timelines = await api.get<BackendTimelineListItem[]>("/api/timelines");
-      setProjects(timelines.map(mapBackendToProject));
+      setProjects([DEMO_PROJECT, ...timelines.map(mapBackendToProject)]);
     } catch {
       setProjects([]);
     } finally {

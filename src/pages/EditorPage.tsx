@@ -15,6 +15,7 @@ import {
   mapNodeToBackendCreate,
 } from "@/lib/mappers.ts";
 import type { BackendTimeline, BackendNode } from "@/lib/mappers.ts";
+import { DEMO_PROJECT_ID, DEMO_PROJECT, DEMO_TIMELINE } from "@/data/demo";
 
 export function EditorPage() {
   const { projectId } = useParams();
@@ -24,9 +25,17 @@ export function EditorPage() {
   const [isLoading, setIsLoading] = useState(true);
   const timelineIdRef = useRef<string | null>(null);
 
-  // Load timeline data from backend
+  // Load timeline data from backend (or demo data for the example board)
   useEffect(() => {
     if (!projectId) return;
+
+    if (projectId === DEMO_PROJECT_ID) {
+      timelineIdRef.current = null; // demo — no backend persistence
+      setProjectName(DEMO_PROJECT.name);
+      setNodes(DEMO_TIMELINE);
+      setIsLoading(false);
+      return;
+    }
 
     let cancelled = false;
     (async () => {
