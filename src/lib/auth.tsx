@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Proceed with local cleanup even if server call fails
     }
     setUser(null);
-    navigate("/landing");
+    navigate("/login");
   }, [navigate]);
 
   return (
@@ -89,6 +89,6 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/landing" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
