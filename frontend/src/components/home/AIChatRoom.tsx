@@ -27,7 +27,7 @@ export function AIChatRoom({ onMessageCountChange }: AIChatRoomProps) {
   const [createdTimelineId, setCreatedTimelineId] = useState<string | null>(
     null
   );
-  const [_processingError, setProcessingError] = useState<string | null>(null);
+  const [, setProcessingError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const userAnswers = useRef<string[]>([]);
 

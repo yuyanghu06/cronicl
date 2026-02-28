@@ -22,7 +22,7 @@ export function EditorPage() {
   const [nodes, setNodes] = useState<TimelineNode[]>([]);
   const [timelineTitle, setTimelineTitle] = useState("LOADING...");
   const [timelineId, setTimelineId] = useState<string | null>(null);
-  const [_systemPrompt, setSystemPrompt] = useState<string | null>(null);
+  const [, setSystemPrompt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,24 +84,33 @@ export function EditorPage() {
   );
 
   const onGenerateBranch = useCallback(
-    async (fromNodeId: string, _description: string): Promise<void> => {
+    async (fromNodeId: string, description: string): Promise<void> => {
       if (!timelineId) throw new Error("No timeline loaded");
 
-      // 1. Mark as generating in local state
       const fromNode = nodes.find((n) => n.id === fromNodeId);
       if (!fromNode) throw new Error("Source node not found");
 
-      // 2. Call AI to get suggestion
-      const aiResult = await suggestFromTimeline({
-        timelineId,
-        nodeId: fromNodeId,
-        numSuggestions: 1,
-      });
+      // 1. Try AI suggestion; fall back to user description if AI fails
+      let title = description.slice(0, 40);
+      let content = description;
 
-      const ghost = aiResult.ghost_nodes[0];
-      if (!ghost) throw new Error("AI returned no suggestions");
+      try {
+        const aiResult = await suggestFromTimeline({
+          timelineId,
+          nodeId: fromNodeId,
+          numSuggestions: 1,
+        });
 
-      // 3. Compute position with collision avoidance
+        const ghost = aiResult.ghost_nodes[0];
+        if (ghost) {
+          title = ghost.title;
+          content = ghost.summary;
+        }
+      } catch (err) {
+        console.warn("AI suggestion failed, using user description:", err);
+      }
+
+      // 2. Compute position with collision avoidance
       const candidateX = fromNode.position.x + 240 + 80;
       let candidateY = fromNode.position.y + 240;
 
@@ -116,26 +125,26 @@ export function EditorPage() {
         candidateY += 280;
       }
 
-      // 4. Persist to backend
+      // 3. Persist to backend
       const created = await apiCreateNode(timelineId, {
         parent_id: fromNodeId,
-        title: ghost.title,
-        label: ghost.title,
-        content: ghost.summary,
+        title,
+        label: title,
+        content,
         position_x: candidateX,
         position_y: candidateY,
         status: "draft",
       });
 
-      // 5. Add to local state and recompute connections
+      // 4. Add to local state and recompute connections
       const newNode: TimelineNode = {
         id: created.id,
         parentId: fromNodeId,
-        label: ghost.title,
-        plotSummary: ghost.summary,
+        label: title,
+        plotSummary: content,
         metadata: {
           createdAt: new Date().toISOString().slice(0, 16).replace("T", " "),
-          wordCount: ghost.summary.split(/\s+/).length,
+          wordCount: content.split(/\s+/).length,
           branchHash: `branch-${created.id.slice(0, 8)}`,
         },
         position: { x: candidateX, y: candidateY },
