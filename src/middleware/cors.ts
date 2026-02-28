@@ -1,18 +1,8 @@
 import { cors } from 'hono/cors';
-import { env } from '../lib/env';
 
-const allowedOrigins = [
-  env.FRONTEND_URL,
-  'http://localhost:5173',
-  'http://localhost:3000',
-];
-
+// Allow all origins for development - restrict in production
 export const corsMiddleware = cors({
-  origin: (origin) => {
-    if (!origin) return env.FRONTEND_URL;
-    if (allowedOrigins.includes(origin)) return origin;
-    return null;
-  },
+  origin: '*',
   credentials: true,
   allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
