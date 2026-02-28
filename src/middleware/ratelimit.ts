@@ -56,9 +56,9 @@ function userKey(c: Context): string {
 
 // --- Exported instances ---
 
-/** 5 requests per minute, keyed by IP */
+/** 15 requests per minute, keyed by IP */
 export const authRateLimiter = createRateLimiter({
-  limit: 5,
+  limit: 15,
   windowMs: 60_000,
   keyFn: (c) => `auth:${ipKey(c)}`,
 });
