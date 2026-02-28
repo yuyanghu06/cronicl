@@ -1,26 +1,19 @@
 import type { Context, Next } from 'hono';
-import { verifyAccessToken, type JWTPayload } from '../services/token';
+
+// Demo user for public access
+const DEMO_USER = {
+  sub: 'demo-user-id',
+  email: 'demo@example.com',
+};
 
 declare module 'hono' {
   interface ContextVariableMap {
-    user: JWTPayload;
+    user: typeof DEMO_USER;
   }
 }
 
+// No-op middleware that sets a demo user for all requests
 export async function authMiddleware(c: Context, next: Next) {
-  const authHeader = c.req.header('Authorization');
-  
-  if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ error: 'Unauthorized' }, 401);
-  }
-
-  const token = authHeader.slice(7);
-
-  try {
-    const payload = await verifyAccessToken(token);
-    c.set('user', payload);
-    await next();
-  } catch {
-    return c.json({ error: 'Invalid or expired token' }, 401);
-  }
+  c.set('user', DEMO_USER);
+  await next();
 }
