@@ -131,6 +131,33 @@
 }
 
 /* ----------------------------------------
+   Light Mode Overrides
+   ---------------------------------------- */
+
+html[data-theme="light"] {
+  --color-bg-void: #F5F0E8;
+  --color-bg-base: #FAF7F2;
+  --color-bg-raised: #FFFFFF;
+  --color-bg-hover: #EDE8DF;
+  --color-bg-active: #E5E0D6;
+
+  --color-fg-muted: #A09888;
+  --color-fg-dim: #807868;
+  --color-fg-base: #5C5448;
+  --color-fg-bright: #3A332A;
+  --color-fg-max: #1A1612;
+
+  --color-border-subtle: #E8E2D8;
+  --color-border-base: #D8D0C4;
+  --color-border-strong: #C0B8AA;
+
+  --color-red: #D92D20;
+
+  --shadow-glow-red: 0 0 20px rgba(217, 45, 32, 0.15);
+  --shadow-glow-white: 0 0 12px rgba(0, 0, 0, 0.04);
+}
+
+/* ----------------------------------------
    Logo wave animation
    ---------------------------------------- */
 

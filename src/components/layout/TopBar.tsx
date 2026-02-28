@@ -1,8 +1,9 @@
 import { cn } from "@/lib/cn";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
-import { Settings, User, LogOut } from "lucide-react";
+import { Settings, User, LogOut, Sun, Moon } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useAuth } from "@/lib/auth.tsx";
+import { useTheme } from "@/lib/theme";
 import { useState } from "react";
 import type { ReactNode } from "react";
 
@@ -31,6 +32,7 @@ function WaveLogo({ text }: { text: string }) {
 export function TopBar({ centerContent, rightContent }: TopBarProps) {
   const navigate = useNavigate();
   const { user, isAuthenticated, login, logout } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
 
   return (
@@ -51,6 +53,13 @@ export function TopBar({ centerContent, rightContent }: TopBarProps) {
 
       <div className="flex items-center gap-3">
         {rightContent}
+        <button
+          onClick={toggleTheme}
+          className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none p-1.5 rounded-lg hover:bg-bg-hover"
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? <Sun size={18} strokeWidth={1.5} /> : <Moon size={18} strokeWidth={1.5} />}
+        </button>
         <button
           onClick={() => navigate("/profile")}
           className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none p-1.5 rounded-lg hover:bg-bg-hover"
