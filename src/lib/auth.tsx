@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Navigate, useNavigate } from "react-router";
-import { api, getToken, clearToken } from "@/lib/api.ts";
+import { api } from "@/lib/api.ts";
 
 interface User {
   id: string;
@@ -35,17 +35,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   const refreshUser = useCallback(async () => {
-    const token = getToken();
-    if (!token) {
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
     try {
       const data = await api.get<User>("/me/");
       setUser(data);
     } catch {
-      clearToken();
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -66,7 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Proceed with local cleanup even if server call fails
     }
-    clearToken();
     setUser(null);
     navigate("/landing");
   }, [navigate]);

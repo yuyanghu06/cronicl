@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router";
 import { motion } from "motion/react";
 import { useAuth } from "@/lib/auth.tsx";
-import { setToken, ApiError } from "@/lib/api.ts";
+import { ApiError } from "@/lib/api.ts";
 import { ScanlineOverlay } from "@/components/ui/ScanlineOverlay";
 import { BackgroundTexture } from "@/components/landing/BackgroundTexture";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
@@ -40,12 +40,11 @@ export function LoginPage() {
         credentials: "include",
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
       if (!res.ok) {
+        const data = await res.json();
         setError(data.error ?? "Login failed");
         return;
       }
-      setToken(data.accessToken);
       await refreshUser();
       navigate("/home", { replace: true });
     } catch (err) {
