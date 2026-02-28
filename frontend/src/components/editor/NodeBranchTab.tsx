@@ -8,7 +8,7 @@ import type { TimelineNode } from "@/types/node";
 
 interface NodeBranchTabProps {
   node: TimelineNode;
-  onGenerateBranch: (fromNodeId: string, description: string) => void;
+  onGenerateBranch: (fromNodeId: string, description: string) => Promise<void>;
 }
 
 type Stage = "awaiting_description" | "confirmed" | "generating";
@@ -76,9 +76,22 @@ export function NodeBranchTab({ node, onGenerateBranch }: NodeBranchTabProps) {
     }, 600);
   }, [input, node.id]);
 
-  const handleGenerate = useCallback(() => {
+  const handleGenerate = useCallback(async () => {
     setStage("generating");
-    onGenerateBranch(node.id, description);
+    try {
+      await onGenerateBranch(node.id, description);
+    } catch (err) {
+      console.error("Branch generation failed:", err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `ai-error-${Date.now()}`,
+          variant: "ai",
+          content: `Generation failed: ${err instanceof Error ? err.message : "Unknown error"}. Try again.`,
+        },
+      ]);
+      setStage("confirmed");
+    }
   }, [node.id, description, onGenerateBranch]);
 
   return (

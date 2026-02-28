@@ -1,5 +1,6 @@
 export interface TimelineNode {
   id: string;
+  parentId: string | null;
   label: string;
   plotSummary: string;
   metadata: NodeMetadata;

@@ -1,10 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { AIChatRoom } from "@/components/home/AIChatRoom";
-import { mockProjects } from "@/data/mock-projects";
+import { listTimelines } from "@/lib/api";
+import type { ApiTimeline } from "@/lib/api";
+
+function formatTimeAgo(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  return `${diffDays}d ago`;
+}
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -12,6 +26,20 @@ export function HomePage() {
   const [sessionId] = useState(
     () => `SES-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
   );
+  const [projects, setProjects] = useState<ApiTimeline[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+
+  useEffect(() => {
+    listTimelines()
+      .then((rows) => {
+        setProjects(rows);
+        setLoadingProjects(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load timelines:", err);
+        setLoadingProjects(false);
+      });
+  }, []);
 
   return (
     <AppShell
@@ -28,20 +56,34 @@ export function HomePage() {
             </DotMatrixText>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {mockProjects.map((project) => (
-              <button
-                key={project.id}
-                onClick={() => navigate(`/editor/${project.id}`)}
-                className="w-full text-left px-4 py-3 border-b border-border-subtle hover:bg-bg-hover transition-colors cursor-pointer bg-transparent"
-              >
-                <SyntMonoText className="text-xs text-fg-bright block mb-0.5">
-                  {project.name}
+            {loadingProjects ? (
+              <div className="px-4 py-3">
+                <SyntMonoText className="text-[10px] text-fg-muted animate-pulse">
+                  LOADING...
                 </SyntMonoText>
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="px-4 py-3">
                 <SyntMonoText className="text-[10px] text-fg-muted">
-                  {project.nodeCount} nodes // {project.lastEdited}
+                  NO PROJECTS YET
                 </SyntMonoText>
-              </button>
-            ))}
+              </div>
+            ) : (
+              projects.map((project) => (
+                <button
+                  key={project.id}
+                  onClick={() => navigate(`/editor/${project.id}`)}
+                  className="w-full text-left px-4 py-3 border-b border-border-subtle hover:bg-bg-hover transition-colors cursor-pointer bg-transparent"
+                >
+                  <SyntMonoText className="text-xs text-fg-bright block mb-0.5">
+                    {project.title}
+                  </SyntMonoText>
+                  <SyntMonoText className="text-[10px] text-fg-muted">
+                    {project.nodeCount ?? 0} nodes // {formatTimeAgo(project.updatedAt)}
+                  </SyntMonoText>
+                </button>
+              ))
+            )}
           </div>
         </aside>
 
