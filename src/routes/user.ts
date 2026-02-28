@@ -5,7 +5,7 @@ const user = new Hono();
 // Demo user endpoint - returns static demo user
 user.get('/', (c) => {
   return c.json({
-    id: 'demo-user-id',
+    id: '00000000-0000-0000-0000-000000000000',
     email: 'demo@example.com',
     name: 'Demo User',
     avatarUrl: null,

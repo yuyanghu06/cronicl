@@ -1,8 +1,8 @@
 import type { Context, Next } from 'hono';
 
-// Demo user for public access
+// Demo user for public access (valid UUID format)
 const DEMO_USER = {
-  sub: 'demo-user-id',
+  sub: '00000000-0000-0000-0000-000000000000',
   email: 'demo@example.com',
 };
 
