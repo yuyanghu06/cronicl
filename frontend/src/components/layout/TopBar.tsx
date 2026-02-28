@@ -15,7 +15,7 @@ export function TopBar({ centerContent, rightContent }: TopBarProps) {
   return (
     <header className="h-12 bg-bg-base border-b border-border-subtle flex items-center justify-between px-5 shrink-0">
       <button
-        onClick={() => navigate("/home")}
+        onClick={() => navigate("/landing")}
         className={cn(
           "cursor-pointer bg-transparent border-none"
         )}
