@@ -4,14 +4,8 @@ import { db } from '../db/client';
 import { users, authEvents, oauthIdentities } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { env } from '../lib/env';
-import {
-  createAccessToken,
-  createRefreshToken,
-  rotateRefreshToken,
-  revokeRefreshToken,
-  verifyAccessToken,
-} from '../services/token';
-import { hashToken, generateSecureToken, hashPassword, verifyPassword } from '../lib/hash';
+import { createSession, revokeSession } from '../services/token';
+import { generateSecureToken, hashPassword, verifyPassword } from '../lib/hash';
 import {
   buildAuthorizationURL,
   exchangeCodeForTokens,
@@ -28,8 +22,18 @@ const DEV_USER_ID = '00000000-0000-0000-0000-000000000000';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** SameSite policy: cross-site in production (different Railway subdomains), Lax in dev */
-const refreshCookieSameSite = () => env.NODE_ENV === 'production' ? 'None' as const : 'Lax' as const;
-const refreshCookieSecure = () => env.NODE_ENV === 'production';
+const sessionCookieSameSite = () => env.NODE_ENV === 'production' ? 'None' as const : 'Lax' as const;
+const sessionCookieSecure = () => env.NODE_ENV === 'production';
+
+function setSessionCookie(c: Parameters<typeof setCookie>[0], token: string) {
+  setCookie(c, 'session', token, {
+    httpOnly: true,
+    secure: sessionCookieSecure(),
+    sameSite: sessionCookieSameSite(),
+    maxAge: 60 * 60 * 24 * 7,
+    path: '/',
+  });
+}
 
 // Email+Password registration
 auth.post('/register', async (c) => {
@@ -61,11 +65,7 @@ auth.post('/register', async (c) => {
     })
     .returning();
 
-  const accessToken = await createAccessToken({
-    sub: newUser.id,
-    email: newUser.email,
-  });
-  const refreshToken = await createRefreshToken(newUser.id);
+  const sessionToken = await createSession(newUser.id);
 
   await db.insert(authEvents).values({
     userId: newUser.id,
@@ -74,15 +74,9 @@ auth.post('/register', async (c) => {
     userAgent: c.req.header('user-agent'),
   });
 
-  setCookie(c, 'refresh_token', refreshToken, {
-    httpOnly: true,
-    secure: refreshCookieSecure(),
-    sameSite: refreshCookieSameSite(),
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-  });
+  setSessionCookie(c, sessionToken);
 
-  return c.json({ accessToken });
+  return c.json({ success: true });
 });
 
 // Email+Password login
@@ -107,11 +101,7 @@ auth.post('/login/email', async (c) => {
     return c.json({ error: 'Invalid credentials' }, 401);
   }
 
-  const accessToken = await createAccessToken({
-    sub: user.id,
-    email: user.email,
-  });
-  const refreshToken = await createRefreshToken(user.id);
+  const sessionToken = await createSession(user.id);
 
   await db.insert(authEvents).values({
     userId: user.id,
@@ -120,15 +110,9 @@ auth.post('/login/email', async (c) => {
     userAgent: c.req.header('user-agent'),
   });
 
-  setCookie(c, 'refresh_token', refreshToken, {
-    httpOnly: true,
-    secure: refreshCookieSecure(),
-    sameSite: refreshCookieSameSite(),
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-  });
+  setSessionCookie(c, sessionToken);
 
-  return c.json({ accessToken });
+  return c.json({ success: true });
 });
 
 // OAuth login — redirect to Railway (or dev bypass)
@@ -147,11 +131,7 @@ auth.get('/login', async (c) => {
       });
     }
 
-    const accessToken = await createAccessToken({
-      sub: DEV_USER_ID,
-      email: 'dev@localhost',
-    });
-    const refreshToken = await createRefreshToken(DEV_USER_ID);
+    const sessionToken = await createSession(DEV_USER_ID);
 
     await db.insert(authEvents).values({
       userId: DEV_USER_ID,
@@ -160,7 +140,7 @@ auth.get('/login', async (c) => {
       userAgent: c.req.header('user-agent'),
     });
 
-    setCookie(c, 'refresh_token', refreshToken, {
+    setCookie(c, 'session', sessionToken, {
       httpOnly: true,
       secure: false,
       sameSite: 'Lax',
@@ -168,9 +148,7 @@ auth.get('/login', async (c) => {
       path: '/',
     });
 
-    const redirectUrl = new URL('/auth/callback', env.FRONTEND_URL);
-    redirectUrl.searchParams.set('access_token', accessToken);
-    return c.redirect(redirectUrl.toString());
+    return c.redirect(`${env.FRONTEND_URL}/auth/callback`);
   }
 
   try {
@@ -178,7 +156,7 @@ auth.get('/login', async (c) => {
 
     setCookie(c, 'oauth_state', state, {
       httpOnly: true,
-      secure: refreshCookieSecure(),
+      secure: sessionCookieSecure(),
       sameSite: 'Lax',
       maxAge: 60 * 10,
       path: '/',
@@ -192,7 +170,7 @@ auth.get('/login', async (c) => {
   }
 });
 
-// OAuth callback — exchange code, find/create user, issue tokens
+// OAuth callback — exchange code, find/create user, set session cookie
 auth.get('/callback', async (c) => {
   const code = c.req.query('code');
   const state = c.req.query('state');
@@ -272,12 +250,7 @@ auth.get('/callback', async (c) => {
       }
     }
 
-    // Issue tokens
-    const accessToken = await createAccessToken({
-      sub: userId,
-      email: userInfo.email,
-    });
-    const refreshToken = await createRefreshToken(userId);
+    const sessionToken = await createSession(userId);
 
     // Log login event
     await db.insert(authEvents).values({
@@ -287,137 +260,24 @@ auth.get('/callback', async (c) => {
       userAgent: c.req.header('user-agent'),
     });
 
-    // Set refresh token cookie
-    setCookie(c, 'refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: refreshCookieSecure(),
-      sameSite: refreshCookieSameSite(),
-      maxAge: 60 * 60 * 24 * 7,
-      path: '/',
-    });
+    setSessionCookie(c, sessionToken);
 
-    // Redirect to frontend with access token
-    const redirectUrl = new URL('/auth/callback', env.FRONTEND_URL);
-    redirectUrl.searchParams.set('access_token', accessToken);
-    return c.redirect(redirectUrl.toString());
+    return c.redirect(`${env.FRONTEND_URL}/auth/callback`);
   } catch (error) {
     console.error('OAuth callback error:', error);
     return c.redirect(`${env.FRONTEND_URL}/auth/error?reason=exchange_failed`);
   }
 });
 
-// Refresh access token
-auth.post('/refresh', async (c) => {
-  const refreshToken = getCookie(c, 'refresh_token');
-
-  if (!refreshToken) {
-    return c.json({ error: 'No refresh token' }, 401);
-  }
-
-  try {
-    // Get user from old refresh token to validate
-    const tokenHash = hashToken(refreshToken);
-    const tokenRecord = await db.query.refreshTokens.findFirst({
-      where: eq(
-        (await import('../db/schema')).refreshTokens.tokenHash,
-        tokenHash
-      ),
-    });
-
-    if (!tokenRecord || tokenRecord.revokedAt) {
-      deleteCookie(c, 'refresh_token');
-      return c.json({ error: 'Invalid refresh token' }, 401);
-    }
-
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, tokenRecord.userId),
-    });
-
-    if (!user) {
-      return c.json({ error: 'User not found' }, 401);
-    }
-
-    // Rotate refresh token
-    const newRefreshToken = await rotateRefreshToken(refreshToken, user.id);
-
-    // Create new access token
-    const accessToken = await createAccessToken({
-      sub: user.id,
-      email: user.email,
-    });
-
-    // Log refresh event
-    await db.insert(authEvents).values({
-      userId: user.id,
-      eventType: 'refresh',
-      ipAddress: c.req.header('x-forwarded-for') ?? c.req.header('x-real-ip'),
-      userAgent: c.req.header('user-agent'),
-    });
-
-    // Set new refresh token cookie
-    setCookie(c, 'refresh_token', newRefreshToken, {
-      httpOnly: true,
-      secure: refreshCookieSecure(),
-      sameSite: refreshCookieSameSite(),
-      maxAge: 60 * 60 * 24 * 7,
-      path: '/',
-    });
-
-    return c.json({ accessToken });
-  } catch (error) {
-    console.error('Refresh token error:', error);
-    deleteCookie(c, 'refresh_token');
-    return c.json({ error: 'Invalid refresh token' }, 401);
-  }
-});
-
 // Logout
 auth.post('/logout', async (c) => {
-  const refreshToken = getCookie(c, 'refresh_token');
-  const authHeader = c.req.header('Authorization');
+  const sessionToken = getCookie(c, 'session');
 
-  let userId: string | null = null;
-
-  // Try to get user ID from access token
-  if (authHeader?.startsWith('Bearer ')) {
-    try {
-      const payload = await verifyAccessToken(authHeader.slice(7));
-      userId = payload.sub;
-    } catch {
-      // Token might be expired, that's okay
-    }
+  if (sessionToken) {
+    await revokeSession(sessionToken);
   }
 
-  // Revoke refresh token if present
-  if (refreshToken) {
-    await revokeRefreshToken(refreshToken);
-
-    // If we don't have userId from access token, get it from refresh token
-    if (!userId) {
-      const tokenHash = hashToken(refreshToken);
-      const tokenRecord = await db.query.refreshTokens.findFirst({
-        where: eq(
-          (await import('../db/schema')).refreshTokens.tokenHash,
-          tokenHash
-        ),
-      });
-      if (tokenRecord) {
-        userId = tokenRecord.userId;
-      }
-    }
-  }
-
-  deleteCookie(c, 'refresh_token');
-
-  // Log logout event
-  if (userId) {
-    await db.insert(authEvents).values({
-      userId,
-      eventType: 'logout',
-      ipAddress: c.req.header('x-forwarded-for') ?? c.req.header('x-real-ip'),
-      userAgent: c.req.header('user-agent'),
-    });
-  }
+  deleteCookie(c, 'session', { path: '/' });
 
   return c.json({ success: true });
 });

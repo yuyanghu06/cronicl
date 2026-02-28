@@ -11,6 +11,7 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
+// Used for opaque session tokens (tokenHash, userId, expiresAt, revokedAt)
 export const refreshTokens = pgTable('refresh_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id')

@@ -1,11 +1,18 @@
 import { cors } from 'hono/cors';
 import { env } from '../lib/env';
 
+// Ensure FRONTEND_URL includes protocol
+const frontendUrl = env.FRONTEND_URL?.startsWith('http')
+  ? env.FRONTEND_URL
+  : env.FRONTEND_URL
+    ? `https://${env.FRONTEND_URL}`
+    : undefined;
+
 const allowedOrigins = [
-  env.FRONTEND_URL,
+  frontendUrl,
   'http://localhost:5173',
   'http://localhost:3000',
-].filter(Boolean);
+].filter(Boolean) as string[];
 
 export const corsMiddleware = cors({
   origin: (origin) => {

@@ -1,12 +1,13 @@
 import type { Context, Next } from 'hono';
-import { verifyAccessToken, type JWTPayload } from '../services/token';
+import { getCookie } from 'hono/cookie';
+import { validateSession, type SessionUser } from '../services/token';
 import { db } from '../db/client';
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
 declare module 'hono' {
   interface ContextVariableMap {
-    user: JWTPayload;
+    user: SessionUser;
   }
 }
 
@@ -29,27 +30,32 @@ async function ensureDevUser() {
 }
 
 export async function authMiddleware(c: Context, next: Next) {
-  const authHeader = c.req.header('Authorization');
+  const sessionToken = getCookie(c, 'session');
 
-  // Dev bypass: skip auth in non-production when no token provided
-  if (process.env.NODE_ENV !== 'production' && !authHeader) {
+  // Dev bypass: skip auth in non-production when no session cookie
+  if (process.env.NODE_ENV !== 'production' && !sessionToken) {
     await ensureDevUser();
-    c.set('user', { sub: DEV_USER_ID, email: 'dev@localhost' } as JWTPayload);
+    c.set('user', { sub: DEV_USER_ID, email: 'dev@localhost' } as SessionUser);
     await next();
     return;
   }
 
-  if (!authHeader?.startsWith('Bearer ')) {
+  if (!sessionToken) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const token = authHeader.slice(7);
-
-  try {
-    const payload = await verifyAccessToken(token);
-    c.set('user', payload);
-    await next();
-  } catch {
-    return c.json({ error: 'Invalid or expired token' }, 401);
+  const session = await validateSession(sessionToken);
+  if (!session) {
+    return c.json({ error: 'Invalid or expired session' }, 401);
   }
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, session.userId),
+  });
+  if (!user) {
+    return c.json({ error: 'User not found' }, 401);
+  }
+
+  c.set('user', { sub: user.id, email: user.email } as SessionUser);
+  await next();
 }
