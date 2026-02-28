@@ -227,6 +227,7 @@ app.patch('/:timelineId/nodes/:nodeId', async (c) => {
   if (body.position_x !== undefined) updates.positionX = body.position_x;
   if (body.position_y !== undefined) updates.positionY = body.position_y;
   if (body.sort_order !== undefined) updates.sortOrder = body.sort_order;
+  if (body.image_url !== undefined) updates.imageUrl = body.image_url;
 
   const [updated] = await db
     .update(timelineNodes)

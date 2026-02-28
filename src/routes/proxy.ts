@@ -9,9 +9,9 @@ const MAX_PROMPT_LENGTH = 10_000;
 
 const proxy = new Hono();
 
-proxy.use('*', authMiddleware);
-proxy.use('*', mediaRateLimiter);
-proxy.use('*', quotaMiddleware);
+proxy.use('/generate/*', authMiddleware);
+proxy.use('/generate/*', mediaRateLimiter);
+proxy.use('/generate/*', quotaMiddleware);
 
 proxy.post('/generate/text', async (c) => {
   try {

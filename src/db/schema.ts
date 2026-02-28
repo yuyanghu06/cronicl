@@ -105,6 +105,7 @@ export const timelineNodes = pgTable(
     positionX: integer('position_x').default(0),
     positionY: integer('position_y').default(0),
     sortOrder: integer('sort_order').default(0),
+    imageUrl: text('image_url'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },

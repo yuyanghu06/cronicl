@@ -47,7 +47,7 @@ export async function generateImage(req: GenerateImageRequest): Promise<Generate
     throw new Error('AI provider not configured');
   }
 
-  const model = req.model ?? 'gemini-2.0-flash-preview-image-generation';
+  const model = req.model ?? 'gemini-2.5-flash-image';
   const endpoint = `generateContent (image)`;
   
   logRequest(endpoint, model, req.prompt);

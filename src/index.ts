@@ -22,12 +22,12 @@ app.use('*', corsMiddleware);
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-// Routes
+// Routes — more-specific prefixes first to avoid middleware leaking
 app.route('/auth', auth);
 app.route('/me', user);
+app.route('/api/timelines', timelines);
 app.route('/api', proxy);
 app.route('/ai', ai);
-app.route('/api/timelines', timelines);
 
 // Error handling
 app.onError((err, c) => {
