@@ -2,9 +2,6 @@ const requiredEnvVars = [
   'DATABASE_URL',
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET',
-  'GOOGLE_CLIENT_ID',
-  'GOOGLE_CLIENT_SECRET',
-  'GOOGLE_CALLBACK_URL',
 ] as const;
 
 type EnvVar = (typeof requiredEnvVars)[number];
@@ -25,9 +22,6 @@ export const env = {
   DATABASE_URL: getEnv('DATABASE_URL'),
   JWT_ACCESS_SECRET: getEnv('JWT_ACCESS_SECRET'),
   JWT_REFRESH_SECRET: getEnv('JWT_REFRESH_SECRET'),
-  GOOGLE_CLIENT_ID: getEnv('GOOGLE_CLIENT_ID'),
-  GOOGLE_CLIENT_SECRET: getEnv('GOOGLE_CLIENT_SECRET'),
-  GOOGLE_CALLBACK_URL: getEnv('GOOGLE_CALLBACK_URL'),
   FRONTEND_URL: getOptionalEnv('FRONTEND_URL') ?? 'http://localhost:5173',
   PORT: parseInt(getOptionalEnv('PORT') ?? '3000', 10),
   NODE_ENV: getOptionalEnv('NODE_ENV') ?? 'development',
