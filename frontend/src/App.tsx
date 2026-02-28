@@ -1,23 +1,17 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { ThemeProvider } from './hooks/useTheme'
-import NavBar from './components/NavBar'
-import LandingPage from './pages/LandingPage'
-import HomePage from './pages/HomePage'
-import ExplorerPage from './pages/ExplorerPage'
-import TimelinePage from './pages/TimelinePage'
+import { BrowserRouter, Routes, Route, Navigate } from "react-router";
+import { LandingPage } from "@/pages/LandingPage";
+import { HomePage } from "@/pages/HomePage";
+import { EditorPage } from "@/pages/EditorPage";
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <BrowserRouter>
-        <NavBar />
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/home" element={<HomePage />} />
-          <Route path="/explore" element={<ExplorerPage />} />
-          <Route path="/timeline/:id" element={<TimelinePage />} />
-        </Routes>
-      </BrowserRouter>
-    </ThemeProvider>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/landing" replace />} />
+        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/home" element={<HomePage />} />
+        <Route path="/editor/:projectId" element={<EditorPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
