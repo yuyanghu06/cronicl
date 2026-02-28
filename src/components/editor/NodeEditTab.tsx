@@ -5,7 +5,7 @@ import type { TimelineNode } from "@/types/node";
 
 interface NodeEditTabProps {
   node: TimelineNode;
-  onSave: (nodeId: string, updates: { label: string; plotSummary: string }) => void;
+  onSave: (nodeId: string, updates: { label: string; plotSummary: string }) => void | Promise<void>;
   onDiscard: () => void;
 }
 

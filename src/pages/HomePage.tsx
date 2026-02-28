@@ -1,18 +1,47 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { AIChatRoom } from "@/components/home/AIChatRoom";
-import { mockProjects } from "@/data/mock-projects";
+import { api } from "@/lib/api.ts";
+import {
+  mapBackendToProject,
+  type BackendTimelineListItem,
+} from "@/lib/mappers.ts";
+import type { Project } from "@/types/project.ts";
 import { PanelLeftClose, PanelLeftOpen, BookOpen } from "lucide-react";
 
 export function HomePage() {
   const navigate = useNavigate();
   const [messageCount, setMessageCount] = useState(0);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [sessionId] = useState(
     () => `SES-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+  );
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      const rows = await api.get<BackendTimelineListItem[]>("/api/timelines");
+      setProjects(rows.map(mapBackendToProject));
+    } catch {
+      // Keep empty list on error
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  const handleTimelineCreated = useCallback(
+    (timelineId: string) => {
+      navigate(`/editor/${timelineId}`);
+    },
+    [navigate]
   );
 
   return (
@@ -54,39 +83,56 @@ export function HomePage() {
 
           {/* Project list */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
-            {mockProjects.map((project) => (
-              <button
-                key={project.id}
-                onClick={() => navigate(`/editor/${project.id}`)}
-                title={!sidebarExpanded ? project.name : undefined}
-                className={`w-full border-b border-border-subtle hover:bg-bg-hover transition-colors cursor-pointer bg-transparent flex items-center gap-3 ${
-                  sidebarExpanded ? "text-left px-4 py-3" : "justify-center px-0 py-3"
-                }`}
-              >
-                {/* Icon — always visible */}
-                <span className="shrink-0 w-7 h-7 rounded-xl bg-bg-raised border border-border-subtle flex items-center justify-center text-fg-muted group-hover:text-fg-bright transition-colors">
-                  <BookOpen size={13} strokeWidth={1.5} />
-                </span>
-
-                {/* Text — only in expanded state */}
-                {sidebarExpanded && (
-                  <span className="flex flex-col min-w-0">
-                    <SyntMonoText className="text-sm text-fg-bright truncate block">
-                      {project.name}
-                    </SyntMonoText>
-                    <SyntMonoText className="text-xs text-fg-muted truncate">
-                      {project.nodeCount} nodes · {project.lastEdited}
-                    </SyntMonoText>
+            {isLoadingProjects ? (
+              <div className="px-4 py-3">
+                <SyntMonoText className="text-[10px] text-fg-muted">
+                  LOADING...
+                </SyntMonoText>
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="px-4 py-3">
+                <SyntMonoText className="text-[10px] text-fg-muted">
+                  NO PROJECTS YET
+                </SyntMonoText>
+              </div>
+            ) : (
+              projects.map((project) => (
+                <button
+                  key={project.id}
+                  onClick={() => navigate(`/editor/${project.id}`)}
+                  title={!sidebarExpanded ? project.name : undefined}
+                  className={`w-full border-b border-border-subtle hover:bg-bg-hover transition-colors cursor-pointer bg-transparent flex items-center gap-3 ${
+                    sidebarExpanded ? "text-left px-4 py-3" : "justify-center px-0 py-3"
+                  }`}
+                >
+                  {/* Icon — always visible */}
+                  <span className="shrink-0 w-7 h-7 rounded-xl bg-bg-raised border border-border-subtle flex items-center justify-center text-fg-muted group-hover:text-fg-bright transition-colors">
+                    <BookOpen size={13} strokeWidth={1.5} />
                   </span>
-                )}
-              </button>
-            ))}
+
+                  {/* Text — only in expanded state */}
+                  {sidebarExpanded && (
+                    <span className="flex flex-col min-w-0">
+                      <SyntMonoText className="text-sm text-fg-bright truncate block">
+                        {project.name}
+                      </SyntMonoText>
+                      <SyntMonoText className="text-xs text-fg-muted truncate">
+                        {project.nodeCount} nodes · {project.lastEdited}
+                      </SyntMonoText>
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
           </div>
         </aside>
 
         {/* Main chat column */}
         <div className="flex-1 flex flex-col min-w-0">
-          <AIChatRoom onMessageCountChange={setMessageCount} />
+          <AIChatRoom
+            onMessageCountChange={setMessageCount}
+            onTimelineCreated={handleTimelineCreated}
+          />
         </div>
       </div>
     </AppShell>

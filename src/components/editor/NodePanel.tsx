@@ -10,8 +10,8 @@ type Tab = "EDIT" | "GENERATE";
 
 interface NodePanelProps {
   node: TimelineNode;
-  onSave: (nodeId: string, updates: { label: string; plotSummary: string }) => void;
-  onGenerateBranch: (fromNodeId: string, description: string) => void;
+  onSave: (nodeId: string, updates: { label: string; plotSummary: string }) => void | Promise<void>;
+  onGenerateBranch: (fromNodeId: string, description: string) => void | Promise<void>;
 }
 
 export function NodePanel({ node, onSave, onGenerateBranch }: NodePanelProps) {

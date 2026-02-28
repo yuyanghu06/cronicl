@@ -4,11 +4,11 @@ import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { CourierText } from "@/components/ui/CourierText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { Button } from "@/components/ui/Button";
-import type { TimelineNode } from "@/types/node";
+import type { TimelineNode } from "@/types/node.ts";
 
 interface NodeBranchTabProps {
   node: TimelineNode;
-  onGenerateBranch: (fromNodeId: string, description: string) => void;
+  onGenerateBranch: (fromNodeId: string, description: string) => Promise<void> | void;
 }
 
 type Stage = "awaiting_description" | "confirmed" | "generating";
@@ -24,6 +24,7 @@ export function NodeBranchTab({ node, onGenerateBranch }: NodeBranchTabProps) {
   const [messages, setMessages] = useState<MiniMessage[]>([]);
   const [input, setInput] = useState("");
   const [description, setDescription] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Reset on node change
@@ -39,6 +40,7 @@ export function NodeBranchTab({ node, onGenerateBranch }: NodeBranchTabProps) {
     ]);
     setInput("");
     setDescription("");
+    setError(null);
   }, [node.id]);
 
   // Auto-scroll
@@ -69,16 +71,22 @@ export function NodeBranchTab({ node, onGenerateBranch }: NodeBranchTabProps) {
         {
           id: `ai-${Date.now()}`,
           variant: "ai",
-          content: `Branch concept received. New node will diverge from ${node.id}. Ready to generate when you are.`,
+          content: `Branch concept received. New node will diverge from ${node.id.slice(0, 8)}. Ready to generate when you are.`,
         },
       ]);
       setStage("confirmed");
     }, 600);
   }, [input, node.id]);
 
-  const handleGenerate = useCallback(() => {
+  const handleGenerate = useCallback(async () => {
     setStage("generating");
-    onGenerateBranch(node.id, description);
+    setError(null);
+    try {
+      await onGenerateBranch(node.id, description);
+    } catch {
+      setError("Generation failed. Try again.");
+      setStage("confirmed");
+    }
   }, [node.id, description, onGenerateBranch]);
 
   return (
@@ -142,6 +150,13 @@ export function NodeBranchTab({ node, onGenerateBranch }: NodeBranchTabProps) {
           </motion.div>
         )}
       </div>
+
+      {/* Error display */}
+      {error && (
+        <div className="shrink-0 mb-2">
+          <SyntMonoText className="text-xs text-red">{error}</SyntMonoText>
+        </div>
+      )}
 
       {/* Input or generate button */}
       {stage === "awaiting_description" && (

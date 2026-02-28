@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { Button } from "@/components/ui/Button";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
+import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { aiResponses, getInitialMessage } from "@/data/ai-responses";
+import { api } from "@/lib/api.ts";
+import type { BackendTimeline } from "@/lib/mappers.ts";
 
 interface Message {
   id: string;
@@ -15,15 +17,22 @@ interface Message {
 
 interface AIChatRoomProps {
   onMessageCountChange: (count: number) => void;
+  onTimelineCreated?: (timelineId: string) => void;
 }
 
-export function AIChatRoom({ onMessageCountChange }: AIChatRoomProps) {
-  const navigate = useNavigate();
+export function AIChatRoom({
+  onMessageCountChange,
+  onTimelineCreated,
+}: AIChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [stage, setStage] = useState(-1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [timelineReady, setTimelineReady] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Store user messages for timeline creation context
+  const userMessagesRef = useRef<string[]>([]);
 
   const addMessage = useCallback(
     (variant: "ai" | "user", content: string) => {
@@ -61,6 +70,7 @@ export function AIChatRoom({ onMessageCountChange }: AIChatRoomProps) {
   const handleUserMessage = useCallback(
     (text: string) => {
       addMessage("user", text);
+      userMessagesRef.current.push(text);
 
       const nextStage = stage + 1;
 
@@ -85,6 +95,29 @@ export function AIChatRoom({ onMessageCountChange }: AIChatRoomProps) {
     },
     [stage, addMessage]
   );
+
+  const handleOpenTimeline = useCallback(async () => {
+    setIsCreating(true);
+    setCreateError(null);
+
+    try {
+      const msgs = userMessagesRef.current;
+      const title = msgs[0]?.slice(0, 100) || "Untitled Project";
+      const summary = msgs.slice(1, 3).join(" ") || undefined;
+      const systemPrompt = msgs.join("\n\n") || undefined;
+
+      const timeline = await api.post<BackendTimeline>("/api/timelines", {
+        title,
+        summary,
+        system_prompt: systemPrompt,
+      });
+
+      onTimelineCreated?.(timeline.id);
+    } catch {
+      setCreateError("Failed to create timeline. Try again.");
+      setIsCreating(false);
+    }
+  }, [onTimelineCreated]);
 
   const inputDisabled = isProcessing || timelineReady || stage < 0;
 
@@ -141,10 +174,16 @@ export function AIChatRoom({ onMessageCountChange }: AIChatRoomProps) {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => navigate("/editor/project-1")}
+              onClick={handleOpenTimeline}
+              disabled={isCreating}
             >
-              OPEN TIMELINE
+              {isCreating ? "CREATING..." : "OPEN TIMELINE"}
             </Button>
+            {createError && (
+              <SyntMonoText className="text-xs text-red mt-2 block">
+                {createError}
+              </SyntMonoText>
+            )}
           </motion.div>
         )}
       </div>
