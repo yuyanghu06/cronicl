@@ -10,15 +10,16 @@ import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { Button } from "@/components/ui/Button";
 import { landingMotion } from "@/components/landing/PowerOnSequence";
 
-const isDev = import.meta.env.DEV;
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
-export function LoginPage() {
+export function RegisterPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading, login, refreshUser } = useAuth();
+  const { isAuthenticated, isLoading, refreshUser } = useAuth();
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,21 +29,30 @@ export function LoginPage() {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  const handleEmailLogin = async (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
-    setSubmitting(true);
 
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const res = await fetch(`${API_URL}/auth/login/email`, {
+      const res = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, name: name || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Login failed");
+        setError(data.error ?? "Registration failed");
         return;
       }
       setToken(data.accessToken);
@@ -50,7 +60,7 @@ export function LoginPage() {
       navigate("/home", { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
-        setError((err.body as { error?: string })?.error ?? "Login failed");
+        setError((err.body as { error?: string })?.error ?? "Registration failed");
       } else {
         setError("Network error — try again");
       }
@@ -91,7 +101,7 @@ export function LoginPage() {
         {/* Subheading */}
         <motion.div variants={landingMotion.item} className="mt-6">
           <SyntMonoText className="text-sm text-fg-dim tracking-[0.3em]">
-            IDENTIFY
+            REGISTER
           </SyntMonoText>
         </motion.div>
 
@@ -100,12 +110,28 @@ export function LoginPage() {
           <div className="w-48 h-px bg-border-strong" />
         </motion.div>
 
-        {/* Email+Password form */}
+        {/* Form */}
         <motion.form
           variants={landingMotion.item}
           className="mt-8 w-full space-y-4"
-          onSubmit={handleEmailLogin}
+          onSubmit={handleSubmit}
         >
+          <div className="text-left">
+            <label className="block mb-1">
+              <SyntMonoText className="text-[10px] text-fg-dim tracking-widest">
+                NAME
+              </SyntMonoText>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="optional"
+              className={inputClass}
+              autoComplete="name"
+            />
+          </div>
+
           <div className="text-left">
             <label className="block mb-1">
               <SyntMonoText className="text-[10px] text-fg-dim tracking-widest">
@@ -133,8 +159,26 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              minLength={8}
               className={inputClass}
-              autoComplete="current-password"
+              autoComplete="new-password"
+            />
+          </div>
+
+          <div className="text-left">
+            <label className="block mb-1">
+              <SyntMonoText className="text-[10px] text-fg-dim tracking-widest">
+                CONFIRM PASSWORD
+              </SyntMonoText>
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={8}
+              className={inputClass}
+              autoComplete="new-password"
             />
           </div>
 
@@ -151,39 +195,15 @@ export function LoginPage() {
             disabled={submitting}
             className="tracking-[0.25em] text-sm w-full mt-2"
           >
-            {submitting ? "LOGGING IN..." : "LOGIN"}
+            {submitting ? "CREATING..." : "CREATE ACCOUNT"}
           </Button>
         </motion.form>
 
-        {/* Divider with OR */}
-        <motion.div
-          variants={landingMotion.item}
-          className="mt-6 flex items-center gap-4 w-full"
-        >
-          <div className="flex-1 h-px bg-border-subtle" />
-          <SyntMonoText className="text-[10px] text-fg-muted tracking-widest">
-            OR
-          </SyntMonoText>
-          <div className="flex-1 h-px bg-border-subtle" />
-        </motion.div>
-
-        {/* OAuth button */}
-        <motion.div variants={landingMotion.item} className="mt-6 w-full">
-          <Button
-            variant="secondary"
-            size="lg"
-            onClick={login}
-            className="tracking-[0.25em] text-sm w-full"
-          >
-            {isDev ? "DEV LOGIN" : "LOGIN WITH RAILWAY"}
-          </Button>
-        </motion.div>
-
-        {/* Link to register */}
+        {/* Link to login */}
         <motion.div variants={landingMotion.item} className="mt-8">
-          <Link to="/register">
+          <Link to="/login">
             <SyntMonoText className="text-xs text-fg-muted hover:text-fg-bright transition-colors tracking-widest">
-              NO ACCOUNT? REGISTER
+              ALREADY HAVE AN ACCOUNT? LOGIN
             </SyntMonoText>
           </Link>
         </motion.div>
