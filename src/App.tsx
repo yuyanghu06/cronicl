@@ -11,7 +11,7 @@ import { ProfilePage } from "@/pages/ProfilePage";
 function RootRedirect() {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return null;
-  return <Navigate to={isAuthenticated ? "/home" : "/login"} replace />;
+  return <Navigate to={isAuthenticated ? "/home" : "/landing"} replace />;
 }
 
 export default function App() {
