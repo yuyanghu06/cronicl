@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams } from "react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { SidePanel } from "@/components/layout/SidePanel";
@@ -19,6 +19,13 @@ interface TimelineWithNodes extends BackendTimeline {
   nodes: BackendNode[];
 }
 
+interface ImageGenResponse {
+  image: string;
+  mimeType: string;
+  text?: string;
+  model: string;
+}
+
 export function EditorPage() {
   const { projectId } = useParams();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -26,7 +33,80 @@ export function EditorPage() {
   const [projectName, setProjectName] = useState("LOADING...");
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load timeline from API
+  // Track which nodes are currently generating images to avoid duplicates
+  const generatingRef = useRef(new Set<string>());
+  const cancelledRef = useRef(false);
+
+  // --- Image generation ---
+
+  const generateImageForNode = useCallback(
+    async (nodeId: string) => {
+      if (generatingRef.current.has(nodeId)) return;
+      generatingRef.current.add(nodeId);
+
+      // Get current node data from state
+      let node: TimelineNode | undefined;
+      setNodes((prev) => {
+        node = prev.find((n) => n.id === nodeId);
+        return prev;
+      });
+      if (!node) {
+        generatingRef.current.delete(nodeId);
+        return;
+      }
+
+      const prompt = `Cinematic storyboard frame, film still, moody lighting: ${node.label}. ${node.plotSummary.slice(0, 200)}`;
+
+      try {
+        const res = await api.post<ImageGenResponse>("/api/generate/image", {
+          prompt,
+        });
+
+        if (cancelledRef.current) return;
+
+        const dataUrl = `data:${res.mimeType};base64,${res.image}`;
+        setNodes((prev) =>
+          prev.map((n) =>
+            n.id === nodeId ? { ...n, imageUrl: dataUrl } : n
+          )
+        );
+      } catch {
+        // Failed — node stays at FRAME_PENDING, can retry via GEN button
+      } finally {
+        generatingRef.current.delete(nodeId);
+      }
+    },
+    []
+  );
+
+  // Auto-generate images for nodes after timeline loads
+  useEffect(() => {
+    if (isLoading || nodes.length === 0) return;
+
+    cancelledRef.current = false;
+    const nodesNeedingImages = nodes.filter((n) => !n.imageUrl);
+    if (nodesNeedingImages.length === 0) return;
+
+    let i = 0;
+    const timer = setInterval(() => {
+      if (cancelledRef.current || i >= nodesNeedingImages.length) {
+        clearInterval(timer);
+        return;
+      }
+      generateImageForNode(nodesNeedingImages[i].id);
+      i++;
+    }, 2000); // Stagger: one every 2 seconds
+
+    return () => {
+      cancelledRef.current = true;
+      clearInterval(timer);
+    };
+    // Only run once after initial load, not on every nodes change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+
+  // --- Load timeline from API ---
+
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
@@ -170,6 +250,9 @@ export function EditorPage() {
         });
 
         setSelectedNodeId(newNode.id);
+
+        // Auto-generate image for the new node
+        generateImageForNode(newNode.id);
       } catch {
         // Show error in a temporary generating node
         const tempId = `temp-${Date.now()}`;
@@ -200,7 +283,7 @@ export function EditorPage() {
         });
       }
     },
-    [nodes, projectId]
+    [nodes, projectId, generateImageForNode]
   );
 
   return (
@@ -238,6 +321,7 @@ export function EditorPage() {
             nodes={nodes}
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
+            onGenerateImage={generateImageForNode}
           />
         )}
 

@@ -7,6 +7,7 @@ export interface TimelineNode {
   connections: string[];
   type: "scene" | "branch" | "merge" | "chapter";
   status: "draft" | "generating" | "complete" | "locked";
+  imageUrl?: string;
 }
 
 export interface NodeMetadata {

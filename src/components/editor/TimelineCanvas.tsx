@@ -10,12 +10,14 @@ interface TimelineCanvasProps {
   nodes: TNode[];
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
+  onGenerateImage?: (nodeId: string) => void;
 }
 
 export function TimelineCanvas({
   nodes,
   selectedNodeId,
   onSelectNode,
+  onGenerateImage,
 }: TimelineCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: -20, y: -60 });
@@ -140,6 +142,7 @@ export function TimelineCanvas({
               node={node}
               isSelected={selectedNodeId === node.id}
               onClick={() => onSelectNode(node.id)}
+              onGenerateImage={onGenerateImage}
             />
           </motion.div>
         ))}

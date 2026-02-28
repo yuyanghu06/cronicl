@@ -10,9 +10,10 @@ interface TimelineNodeProps {
   node: TNode;
   isSelected: boolean;
   onClick: () => void;
+  onGenerateImage?: (nodeId: string) => void;
 }
 
-export function TimelineNode({ node, isSelected, onClick }: TimelineNodeProps) {
+export function TimelineNode({ node, isSelected, onClick, onGenerateImage }: TimelineNodeProps) {
   return (
     <div
       onClick={onClick}
@@ -26,6 +27,8 @@ export function TimelineNode({ node, isSelected, onClick }: TimelineNodeProps) {
       {/* Storyboard frame */}
       <StoryboardFrame
         status={node.status === "generating" ? "generating" : "pending"}
+        imageUrl={node.imageUrl}
+        onGenerate={onGenerateImage ? () => onGenerateImage(node.id) : undefined}
       />
 
       {/* Node content */}
