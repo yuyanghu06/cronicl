@@ -31,11 +31,6 @@ export async function apiFetch(
     credentials: "include",
   });
 
-  if (res.status === 401) {
-    window.location.href = "/landing";
-    throw new ApiError(401, { error: "Session expired" });
-  }
-
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Unknown error" }));
     throw new ApiError(res.status, body);
