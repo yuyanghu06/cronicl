@@ -1,9 +1,6 @@
 import { cn } from "@/lib/cn";
-import { SyntMonoText } from "@/components/ui/SyntMonoText";
-import { Settings, User, LogOut } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useNavigate } from "react-router";
-import { useAuth } from "@/lib/auth.tsx";
-import { useState } from "react";
 import type { ReactNode } from "react";
 
 interface TopBarProps {
@@ -30,8 +27,6 @@ function WaveLogo({ text }: { text: string }) {
 
 export function TopBar({ centerContent, rightContent }: TopBarProps) {
   const navigate = useNavigate();
-  const { user, isAuthenticated, login, logout } = useAuth();
-  const [showMenu, setShowMenu] = useState(false);
 
   return (
     <header className="h-14 bg-bg-base border-b border-border-subtle flex items-center justify-between px-5 shrink-0 rounded-b-lg">
@@ -52,69 +47,10 @@ export function TopBar({ centerContent, rightContent }: TopBarProps) {
       <div className="flex items-center gap-3">
         {rightContent}
         <button
-          onClick={() => navigate("/profile")}
           className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none p-1.5 rounded-lg hover:bg-bg-hover"
         >
           <Settings size={18} strokeWidth={1.5} />
         </button>
-
-        {isAuthenticated && user ? (
-          <div className="relative">
-            <button
-              onClick={() => setShowMenu((v) => !v)}
-              className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2 p-1.5 rounded-lg hover:bg-bg-hover"
-            >
-              {user.avatarUrl ? (
-                <img
-                  src={user.avatarUrl}
-                  alt=""
-                  className="w-5 h-5 rounded-full"
-                />
-              ) : (
-                <div className="w-5 h-5 rounded-full bg-bg-raised border border-border-subtle flex items-center justify-center">
-                  <SyntMonoText className="text-[9px] text-fg-bright">
-                    {(user.name ?? user.email)?.[0]?.toUpperCase() ?? "U"}
-                  </SyntMonoText>
-                </div>
-              )}
-            </button>
-
-            {showMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowMenu(false)}
-                />
-                <div className="absolute right-0 top-full mt-1 z-50 bg-bg-raised border border-border-subtle rounded-xl py-1 min-w-36">
-                  <div className="px-3 py-1.5 border-b border-border-subtle">
-                    <SyntMonoText className="text-[10px] text-fg-muted block">
-                      {user.name ?? user.email}
-                    </SyntMonoText>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      logout();
-                    }}
-                    className="w-full text-left px-3 py-1.5 text-fg-muted hover:text-fg-bright hover:bg-bg-hover transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2"
-                  >
-                    <LogOut size={12} strokeWidth={1.5} />
-                    <SyntMonoText className="text-[10px]">
-                      LOGOUT
-                    </SyntMonoText>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <button
-            onClick={login}
-            className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none p-1.5 rounded-lg hover:bg-bg-hover"
-          >
-            <User size={18} strokeWidth={1.5} />
-          </button>
-        )}
       </div>
     </header>
   );

@@ -1,24 +1,13 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
-import { useAuth } from "@/lib/auth.tsx";
 import { ScanlineOverlay } from "@/components/ui/ScanlineOverlay";
 import { BackgroundTexture } from "@/components/landing/BackgroundTexture";
 import { PowerOnSequence } from "@/components/landing/PowerOnSequence";
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading } = useAuth();
 
-  // If already authenticated, go straight to home
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      navigate("/home", { replace: true });
-    }
-  }, [isLoading, isAuthenticated, navigate]);
-
-  const handleAction = isAuthenticated
-    ? () => navigate("/home")
-    : () => navigate("/login");
+  const handleAction = () => navigate("/home");
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -33,9 +22,9 @@ export function LandingPage() {
       <ScanlineOverlay />
       <BackgroundTexture />
       <PowerOnSequence
-        buttonLabel={isAuthenticated ? "ENTER" : "LOGIN"}
+        buttonLabel="ENTER"
         onButtonClick={handleAction}
-        hint={isAuthenticated ? "PRESS ENTER TO CONTINUE" : "PRESS ENTER TO LOGIN"}
+        hint="PRESS ENTER TO CONTINUE"
       />
     </div>
   );
