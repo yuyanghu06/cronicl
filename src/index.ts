@@ -1,0 +1,40 @@
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { logger } from 'hono/logger';
+import { corsMiddleware } from './middleware/cors';
+import auth from './routes/auth';
+import user from './routes/user';
+import proxy from './routes/proxy';
+import { env } from './lib/env';
+
+const app = new Hono();
+
+// Global middleware
+app.use('*', logger());
+app.use('*', corsMiddleware);
+
+// Health check
+app.get('/health', (c) => c.json({ status: 'ok' }));
+
+// Routes
+app.route('/auth', auth);
+app.route('/me', user);
+app.route('/api', proxy);
+
+// Error handling
+app.onError((err, c) => {
+  console.error('Unhandled error:', err);
+  return c.json({ error: 'Internal server error' }, 500);
+});
+
+// 404 handler
+app.notFound((c) => c.json({ error: 'Not found' }, 404));
+
+// Start server
+console.log(`Starting server on port ${env.PORT}...`);
+serve({
+  fetch: app.fetch,
+  port: env.PORT,
+});
+
+console.log(`Server running at http://localhost:${env.PORT}`);
