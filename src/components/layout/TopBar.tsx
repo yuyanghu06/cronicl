@@ -51,7 +51,10 @@ export function TopBar({ centerContent, rightContent }: TopBarProps) {
 
       <div className="flex items-center gap-3">
         {rightContent}
-        <button className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none p-1.5 rounded-lg hover:bg-bg-hover">
+        <button
+          onClick={() => navigate("/profile")}
+          className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none p-1.5 rounded-lg hover:bg-bg-hover"
+        >
           <Settings size={18} strokeWidth={1.5} />
         </button>
 

@@ -129,6 +129,14 @@ export const api = {
     return res.json() as Promise<T>;
   },
 
+  async put<T = unknown>(path: string, body?: unknown): Promise<T> {
+    const res = await apiFetch(path, {
+      method: "PUT",
+      body: body != null ? JSON.stringify(body) : undefined,
+    });
+    return res.json() as Promise<T>;
+  },
+
   async delete<T = unknown>(path: string): Promise<T> {
     const res = await apiFetch(path, { method: "DELETE" });
     return res.json() as Promise<T>;

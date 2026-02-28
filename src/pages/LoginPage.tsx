@@ -9,6 +9,8 @@ import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { Button } from "@/components/ui/Button";
 import { landingMotion } from "@/components/landing/PowerOnSequence";
 
+const isDev = import.meta.env.DEV;
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading, login } = useAuth();
@@ -73,14 +75,14 @@ export function LoginPage() {
             onClick={login}
             className="tracking-[0.25em] text-sm px-12"
           >
-            LOGIN WITH RAILWAY
+            {isDev ? "DEV LOGIN" : "LOGIN WITH RAILWAY"}
           </Button>
         </motion.div>
 
         {/* Hint */}
         <motion.div variants={landingMotion.item} className="mt-20">
           <SyntMonoText className="text-xs text-fg-muted/50 tracking-widest">
-            SECURE OAUTH 2.0 // PRESS ENTER
+            {isDev ? "DEV MODE // PRESS ENTER" : "SECURE OAUTH 2.0 // PRESS ENTER"}
           </SyntMonoText>
         </motion.div>
       </motion.div>

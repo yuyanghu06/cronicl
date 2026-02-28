@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { setToken } from "@/lib/api.ts";
+import { useAuth } from "@/lib/auth.tsx";
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -11,11 +13,13 @@ export function AuthCallbackPage() {
 
     if (token) {
       setToken(token);
-      navigate("/home", { replace: true });
+      refreshUser().then(() => {
+        navigate("/home", { replace: true });
+      });
     } else {
       navigate("/landing", { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, refreshUser]);
 
   return null;
 }

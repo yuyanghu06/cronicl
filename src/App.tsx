@@ -5,6 +5,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { HomePage } from "@/pages/HomePage";
 import { EditorPage } from "@/pages/EditorPage";
 import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
+import { ProfilePage } from "@/pages/ProfilePage";
 
 export default function App() {
   return (
@@ -20,6 +21,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
               </ProtectedRoute>
             }
           />
