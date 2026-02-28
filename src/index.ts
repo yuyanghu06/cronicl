@@ -1,16 +1,22 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
+import { secureHeaders } from 'hono/secure-headers';
+import { bodyLimit } from 'hono/body-limit';
 import { corsMiddleware } from './middleware/cors';
 import auth from './routes/auth';
 import user from './routes/user';
 import proxy from './routes/proxy';
+import ai from './routes/ai';
+import timelines from './routes/timelines';
 import { env } from './lib/env';
 
 const app = new Hono();
 
 // Global middleware
 app.use('*', logger());
+app.use('*', secureHeaders());
+app.use('*', bodyLimit({ maxSize: 100 * 1024 })); // 100 KB
 app.use('*', corsMiddleware);
 
 // Health check
@@ -20,6 +26,8 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 app.route('/auth', auth);
 app.route('/me', user);
 app.route('/api', proxy);
+app.route('/ai', ai);
+app.route('/api/timelines', timelines);
 
 // Error handling
 app.onError((err, c) => {
