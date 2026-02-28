@@ -139,7 +139,7 @@ export function AIChatRoom({
             let prevNodeId: string | null = null;
             for (let i = 0; i < nodesToCreate.length; i++) {
               const n = nodesToCreate[i];
-              const created = await api.post<BackendNode>(
+              const created: BackendNode = await api.post<BackendNode>(
                 `/api/timelines/${timeline.id}/nodes`,
                 {
                   title: n.title,
