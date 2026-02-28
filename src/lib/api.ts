@@ -17,12 +17,14 @@ export function clearToken(): void {
 // --- Error type ---
 
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public body: unknown,
-  ) {
+  public status: number;
+  public body: unknown;
+
+  constructor(status: number, body: unknown) {
     super(`API error ${status}`);
     this.name = "ApiError";
+    this.status = status;
+    this.body = body;
   }
 }
 
