@@ -1,14 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { AIChatRoom } from "@/components/home/AIChatRoom";
-import { api } from "@/lib/api.ts";
-import {
-  mapBackendToProject,
-  type BackendTimelineListItem,
-} from "@/lib/mappers.ts";
+import { mockProjects } from "@/data/mock-projects";
 import type { Project } from "@/types/project.ts";
 import { PanelLeftClose, PanelLeftOpen, BookOpen } from "lucide-react";
 
@@ -22,27 +18,19 @@ export function HomePage() {
     () => `SES-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
   );
 
-  const fetchProjects = useCallback(async () => {
-    try {
-      const rows = await api.get<BackendTimelineListItem[]>("/api/timelines");
-      setProjects(rows.map(mapBackendToProject));
-    } catch {
-      // Keep empty list on error
-    } finally {
+  useEffect(() => {
+    // Simulate loading delay then use mock data
+    const timer = setTimeout(() => {
+      setProjects(mockProjects);
       setIsLoadingProjects(false);
-    }
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
-
-  const handleTimelineCreated = useCallback(
-    (timelineId: string) => {
-      navigate(`/editor/${timelineId}`);
-    },
-    [navigate]
-  );
+  const handleTimelineCreated = (timelineId: string) => {
+    navigate(`/editor/${timelineId}`);
+  };
 
   return (
     <AppShell
