@@ -155,16 +155,28 @@ export function AIChatRoom({
             // 2. Parse desired node count from structure answer (stage 3)
             const numNodes = parseActCount(msgs[3] || "");
 
-            // 3. Try AI structure generation
-            let structureNodes: StructureNode[] = [];
-            try {
-              const aiResult = await api.post<AIStructureResponse>("/ai/generate-structure", {
-                story_context: msgs.join("\n\n"),
+            // 3. Try AI structure + visual theme generation in parallel
+            const storyContext = msgs.join("\n\n");
+            const [structureResult, visualThemeResult] = await Promise.allSettled([
+              api.post<AIStructureResponse>("/ai/generate-structure", {
+                story_context: storyContext,
                 num_nodes: numNodes,
-              });
-              structureNodes = aiResult.nodes ?? [];
-            } catch {
-              // AI unavailable — will use placeholders below
+              }),
+              api.post<{ visual_theme: string; model: string }>("/ai/generate-visual-theme", {
+                story_context: storyContext,
+              }),
+            ]);
+
+            const structureNodes: StructureNode[] =
+              structureResult.status === "fulfilled"
+                ? structureResult.value.nodes ?? []
+                : [];
+
+            // Persist visual theme if available (fire-and-forget)
+            if (visualThemeResult.status === "fulfilled") {
+              api.patch(`/api/timelines/${timeline.id}`, {
+                visual_theme: visualThemeResult.value.visual_theme,
+              }).catch(() => {});
             }
 
             // 4. Persist nodes — either AI-generated or fallback

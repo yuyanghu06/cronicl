@@ -25,6 +25,7 @@ export interface BackendTimeline {
   title: string;
   summary: string | null;
   systemPrompt: string | null;
+  visualTheme: string | null;
   tags: string[] | null;
   status: string;
   createdAt: string;
