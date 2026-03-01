@@ -9,17 +9,55 @@ import { aiResponses, getInitialMessage } from "@/data/ai-responses";
 import { api } from "@/lib/api.ts";
 import type { BackendTimeline, BackendNode } from "@/lib/mappers.ts";
 
-interface GhostNode {
+interface StructureNode {
   title: string;
   summary: string;
-  tone: string;
-  direction_type: string;
 }
 
-interface AISuggestResponse {
-  ghost_nodes: GhostNode[];
-  inline_suggestions: unknown[];
+interface AIStructureResponse {
+  nodes: StructureNode[];
   model: string;
+}
+
+const NUMBER_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+
+function parseActCount(answer: string): number {
+  // Try digits first: "5 acts", "7-act"
+  const digitMatch = answer.match(/(\d+)\s*[-–]?\s*acts?/i);
+  if (digitMatch) {
+    return Math.min(10, Math.max(1, parseInt(digitMatch[1], 10)));
+  }
+  // Try standalone digit
+  const standaloneDigit = answer.match(/\b(\d+)\b/);
+  if (standaloneDigit) {
+    const n = parseInt(standaloneDigit[1], 10);
+    if (n >= 1 && n <= 10) return n;
+  }
+  // Try number words: "three-act", "five acts"
+  const lower = answer.toLowerCase();
+  for (const [word, num] of Object.entries(NUMBER_WORDS)) {
+    if (lower.includes(word)) return num;
+  }
+  return 5; // reasonable default
+}
+
+function toRomanNumeral(n: number): string {
+  const numerals: [number, string][] = [
+    [10, "X"], [9, "IX"], [8, "VIII"], [7, "VII"], [6, "VI"],
+    [5, "V"], [4, "IV"], [3, "III"], [2, "II"], [1, "I"],
+  ];
+  let result = "";
+  let remaining = n;
+  for (const [value, symbol] of numerals) {
+    while (remaining >= value) {
+      result += symbol;
+      remaining -= value;
+    }
+  }
+  return result;
 }
 
 interface Message {
@@ -114,27 +152,28 @@ export function AIChatRoom({
               system_prompt: systemPrompt,
             });
 
-            // 2. Try AI suggestion for ghost nodes
-            let ghostNodes: GhostNode[] = [];
+            // 2. Parse desired node count from structure answer (stage 3)
+            const numNodes = parseActCount(msgs[3] || "");
+
+            // 3. Try AI structure generation
+            let structureNodes: StructureNode[] = [];
             try {
-              const aiResult = await api.post<AISuggestResponse>("/ai/suggest", {
-                system_prompt: systemPrompt,
-                active_path: [{ node_id: "root", content: msgs[0] || title }],
-                num_suggestions: 8,
+              const aiResult = await api.post<AIStructureResponse>("/ai/generate-structure", {
+                story_context: msgs.join("\n\n"),
+                num_nodes: numNodes,
               });
-              ghostNodes = aiResult.ghost_nodes ?? [];
+              structureNodes = aiResult.nodes ?? [];
             } catch {
               // AI unavailable — will use placeholders below
             }
 
-            // 3. Persist nodes — either AI-generated or placeholder
-            const nodesToCreate = ghostNodes.length > 0
-              ? ghostNodes.map((g) => ({ title: g.title, content: g.summary }))
-              : [
-                  { title: "Act I — Setup", content: "Introduce the world and protagonist." },
-                  { title: "Inciting Incident", content: "The event that sets the story in motion." },
-                  { title: "Act II — Confrontation", content: "Rising tension and obstacles." },
-                ];
+            // 4. Persist nodes — either AI-generated or fallback
+            const nodesToCreate = structureNodes.length > 0
+              ? structureNodes.map((n) => ({ title: n.title, content: n.summary }))
+              : Array.from({ length: numNodes }, (_, i) => ({
+                  title: `Act ${toRomanNumeral(i + 1)}`,
+                  content: `Story beat ${i + 1} of ${numNodes}.`,
+                }));
 
             let prevNodeId: string | null = null;
             for (let i = 0; i < nodesToCreate.length; i++) {
@@ -156,7 +195,7 @@ export function AIChatRoom({
 
             createdTimelineIdRef.current = timeline.id;
             const nodeCount = nodesToCreate.length;
-            const source = ghostNodes.length > 0 ? "AI-generated" : "placeholder";
+            const source = structureNodes.length > 0 ? "AI-generated" : "placeholder";
 
             setIsProcessing(false);
             addMessage(
