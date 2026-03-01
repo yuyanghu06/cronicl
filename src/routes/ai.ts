@@ -285,14 +285,29 @@ interface StructureResponse {
 ai.post('/generate-structure', async (c) => {
   try {
     const body = await c.req.json();
+    const { sub: userId } = c.get('user');
 
     const story_context = requireString(body, 'story_context', MAX_SYSTEM_PROMPT_LENGTH);
     const num_nodes = Math.min(10, Math.max(1, Number(body.num_nodes) || 5));
 
+    // Load creator profile for style conditioning
+    const creatorProfile = await getCreatorProfile(userId);
+    let creatorSection = '';
+    if (creatorProfile) {
+      const lines: string[] = [];
+      if (creatorProfile.preferred_genres?.length) lines.push(`- Genres: ${creatorProfile.preferred_genres.join(', ')}`);
+      if (creatorProfile.favorite_themes?.length) lines.push(`- Themes: ${creatorProfile.favorite_themes.join(', ')}`);
+      if (creatorProfile.writing_style) lines.push(`- Tone: ${creatorProfile.writing_style}`);
+      if (creatorProfile.disliked_elements?.length) lines.push(`- Avoid: ${creatorProfile.disliked_elements.join(', ')}`);
+      if (lines.length > 0) {
+        creatorSection = `\n\nCreator style preferences:\n${lines.join('\n')}\n\nIncorporate these preferences into the narrative structure.`;
+      }
+    }
+
     const prompt = `You are a story architect. Based on the following creative brief, generate exactly ${num_nodes} story beats that form a compelling narrative arc.
 
 Creative brief:
-${story_context}
+${story_context}${creatorSection}
 
 Return a JSON object with a "nodes" array containing exactly ${num_nodes} objects, each with:
 - "title": A short, evocative act/beat title (e.g. "The Awakening", "Descent into Shadow")

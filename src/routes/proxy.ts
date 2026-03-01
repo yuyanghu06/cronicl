@@ -4,6 +4,9 @@ import { mediaRateLimiter } from '../middleware/ratelimit';
 import { quotaMiddleware } from '../middleware/quota';
 import { generateText, generateImage, type GenerateTextRequest, type GenerateImageRequest } from '../services/ai';
 import { recordUsage } from '../services/usage';
+import { db } from '../db/client';
+import { timelines } from '../db/schema';
+import { eq } from 'drizzle-orm';
 
 const MAX_PROMPT_LENGTH = 10_000;
 
@@ -49,15 +52,34 @@ proxy.post('/generate/text', async (c) => {
 
 proxy.post('/generate/image', async (c) => {
   try {
-    const body = await c.req.json<GenerateImageRequest>();
+    const body = await c.req.json<GenerateImageRequest & { timelineId?: string }>();
 
     if (!body.prompt || typeof body.prompt !== 'string' || body.prompt.trim().length === 0) {
       return c.json({ error: 'Prompt is required and must be a non-empty string' }, 400);
     }
 
-    const prompt = body.prompt.trim();
+    let prompt = body.prompt.trim();
     if (prompt.length > MAX_PROMPT_LENGTH) {
       return c.json({ error: `Prompt exceeds maximum length of ${MAX_PROMPT_LENGTH} characters` }, 400);
+    }
+
+    // Enrich prompt with timeline creative context when available
+    if (body.timelineId) {
+      const timeline = await db.query.timelines.findFirst({
+        where: eq(timelines.id, body.timelineId),
+        columns: { systemPrompt: true },
+      });
+      if (timeline?.systemPrompt) {
+        prompt = `You are generating a storyboard frame for a cinematic narrative.
+
+CREATIVE DIRECTION:
+${timeline.systemPrompt}
+
+SCENE:
+${prompt}
+
+Generate a visually striking image that matches the genre, tone, and world described above.`;
+      }
     }
 
     const result = await generateImage({
