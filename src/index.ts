@@ -10,10 +10,10 @@ import proxy from './routes/proxy';
 import ai from './routes/ai';
 import timelines from './routes/timelines';
 import jobs from './routes/jobs';
-import characters from './routes/characters';
 import { env } from './lib/env';
 import { startImageWorker, stopImageWorker } from './services/imageWorker';
 import { closeQueue } from './lib/queue';
+import { cleanupSessions } from './services/token';
 
 const app = new Hono();
 
@@ -30,7 +30,6 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 app.route('/auth', auth);
 app.route('/me', user);
 app.route('/api/timelines', timelines);
-app.route('/api/timelines/:timelineId/characters', characters);
 app.route('/api/jobs', jobs);
 app.route('/api', proxy);
 app.route('/ai', ai);
@@ -55,6 +54,18 @@ console.log(`Server running at http://localhost:${env.PORT}`);
 
 // Start background worker (no-op if Redis is not configured)
 startImageWorker();
+
+// Session garbage collection — run on startup, then every 6 hours
+cleanupSessions()
+  .then((n) => n > 0 && console.log(`[GC] Cleaned up ${n} expired sessions`))
+  .catch((err) => console.error('[GC] Session cleanup failed:', err));
+
+const sessionGcInterval = setInterval(() => {
+  cleanupSessions()
+    .then((n) => n > 0 && console.log(`[GC] Cleaned up ${n} expired sessions`))
+    .catch((err) => console.error('[GC] Session cleanup failed:', err));
+}, 6 * 60 * 60 * 1000);
+sessionGcInterval.unref();
 
 // Graceful shutdown
 async function shutdown() {

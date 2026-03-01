@@ -1,7 +1,7 @@
 import { generateSecureToken, hashToken } from '../lib/hash';
 import { db } from '../db/client';
 import { refreshTokens } from '../db/schema';
-import { eq, and, isNull, gt } from 'drizzle-orm';
+import { eq, and, isNull, isNotNull, gt, lt, or, sql } from 'drizzle-orm';
 
 const SESSION_EXPIRY_DAYS = 7;
 
@@ -61,4 +61,22 @@ export async function revokeAllSessions(userId: string): Promise<void> {
     .update(refreshTokens)
     .set({ revokedAt: new Date() })
     .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
+}
+
+/** Delete expired sessions and revoked sessions older than 7 days. */
+export async function cleanupSessions(): Promise<number> {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const deleted = await db
+    .delete(refreshTokens)
+    .where(
+      or(
+        lt(refreshTokens.expiresAt, now),
+        and(isNotNull(refreshTokens.revokedAt), lt(refreshTokens.revokedAt, sevenDaysAgo)),
+      ),
+    )
+    .returning({ id: refreshTokens.id });
+
+  return deleted.length;
 }

@@ -10,6 +10,7 @@ import {
 } from '../db/schema';
 import { eq, and, sql, isNotNull, desc } from 'drizzle-orm';
 import { getAncestorPath } from '../services/context';
+import characters from './characters';
 
 // ---------- Zod Schemas ----------
 
@@ -563,5 +564,8 @@ app.put('/:timelineId/branches/:branchId/canon', async (c) => {
   if (!updated) return c.json({ error: 'Not found' }, 404);
   return c.json(updated);
 });
+
+// Mount character bible routes under /:timelineId/characters
+app.route('/:timelineId/characters', characters);
 
 export default app;
