@@ -344,8 +344,13 @@ ai.post('/generate-visual-theme', async (c) => {
     const { sub: userId } = c.get('user');
 
     const story_context = requireString(body, 'story_context', MAX_SYSTEM_PROMPT_LENGTH);
+    const visual_style = typeof body.visual_style === 'string' ? body.visual_style.trim() : '';
 
-    const prompt = `You are a visual director for a cinematic storytelling platform. Based on the creative brief below, write a concise visual style guide that will direct all storyboard image generation for this project.
+    const visualDirective = visual_style
+      ? `\n\nCRITICAL — The creator has specified their desired visual style. This MUST be the primary influence on the output. Treat it as the art director's brief and build everything else around it:\n"${visual_style}"\n`
+      : '';
+
+    const prompt = `You are a visual director for a cinematic storytelling platform. Based on the creative brief below, write a concise visual style guide that will direct all storyboard image generation for this project.${visualDirective}
 
 Cover these aspects in natural prose:
 - Art style (e.g., "dark watercolor illustration with ink wash textures", "hyper-realistic digital matte painting")
