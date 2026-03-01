@@ -40,11 +40,14 @@ auth.post('/register', async (c) => {
   const body = await c.req.json<{ email?: string; password?: string; name?: string }>();
   const { email, password, name } = body;
 
-  if (!email || !EMAIL_RE.test(email)) {
+  if (!email || !EMAIL_RE.test(email) || email.length > 254) {
     return c.json({ error: 'Invalid email address' }, 400);
   }
-  if (!password || password.length < 8) {
-    return c.json({ error: 'Password must be at least 8 characters' }, 400);
+  if (!password || password.length < 8 || password.length > 128) {
+    return c.json({ error: 'Password must be between 8 and 128 characters' }, 400);
+  }
+  if (name && (typeof name !== 'string' || name.length > 200)) {
+    return c.json({ error: 'Name must be 200 characters or fewer' }, 400);
   }
 
   const existing = await db.query.users.findFirst({

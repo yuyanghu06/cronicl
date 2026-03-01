@@ -589,8 +589,9 @@ function handleError(c: any, error: unknown) {
     );
   }
 
+  // Log full error internally but return sanitized message to client
   console.error('AI route error:', error);
-  return c.json({ error: message }, 500);
+  return c.json({ error: 'An internal error occurred while processing your request' }, 500);
 }
 
 export default ai;

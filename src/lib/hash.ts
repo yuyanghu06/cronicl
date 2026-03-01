@@ -22,7 +22,14 @@ export async function verifyPassword(
   stored: string,
 ): Promise<boolean> {
   const [salt, hash] = stored.split(':');
+  // Always compute scrypt to prevent timing oracle on malformed hashes
+  const dummySalt = salt || '0000000000000000';
+  const derived = (await scryptAsync(password, dummySalt, 64)) as Buffer;
   if (!salt || !hash) return false;
-  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
-  return timingSafeEqual(Buffer.from(hash, 'hex'), derived);
+  try {
+    return timingSafeEqual(Buffer.from(hash, 'hex'), derived);
+  } catch {
+    // Buffer length mismatch (corrupted hash) — reject without leaking info
+    return false;
+  }
 }

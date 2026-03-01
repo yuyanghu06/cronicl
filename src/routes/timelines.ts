@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth';
 import { db } from '../db/client';
 import {
@@ -9,6 +10,69 @@ import {
 } from '../db/schema';
 import { eq, and, sql, isNotNull, desc } from 'drizzle-orm';
 import { getAncestorPath } from '../services/context';
+
+// ---------- Zod Schemas ----------
+
+const createTimelineSchema = z.object({
+  title: z.string().min(1).max(500),
+  summary: z.string().max(50_000).nullish(),
+  system_prompt: z.string().max(10_000).nullish(),
+  visual_theme: z.string().max(5_000).nullish(),
+  vision_blurb: z.string().max(5_000).nullish(),
+  tags: z.array(z.string().max(100)).max(50).nullish(),
+  status: z.enum(['draft', 'active', 'archived']).optional().default('draft'),
+});
+
+const updateTimelineSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  summary: z.string().max(50_000).nullish(),
+  system_prompt: z.string().max(10_000).nullish(),
+  visual_theme: z.string().max(5_000).nullish(),
+  vision_blurb: z.string().max(5_000).nullish(),
+  tags: z.array(z.string().max(100)).max(50).nullish(),
+  status: z.enum(['draft', 'active', 'archived']).optional(),
+});
+
+const createNodeSchema = z.object({
+  title: z.string().min(1).max(500),
+  label: z.string().max(500).nullish(),
+  content: z.string().max(100_000).optional().default(''),
+  status: z.enum(['draft', 'generating', 'complete']).optional().default('draft'),
+  parent_id: z.string().uuid().nullish(),
+  position_x: z.number().int().min(-100_000).max(100_000).optional().default(0),
+  position_y: z.number().int().min(-100_000).max(100_000).optional().default(0),
+  sort_order: z.number().int().min(0).max(100_000).optional().default(0),
+});
+
+const updateNodeSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  label: z.string().max(500).nullish(),
+  content: z.string().max(100_000).optional(),
+  status: z.enum(['draft', 'generating', 'complete']).optional(),
+  parent_id: z.string().uuid().nullish(),
+  position_x: z.number().int().min(-100_000).max(100_000).optional(),
+  position_y: z.number().int().min(-100_000).max(100_000).optional(),
+  sort_order: z.number().int().min(0).max(100_000).optional(),
+  image_url: z.string().url().max(2_000).nullish(),
+});
+
+const createBranchSchema = z.object({
+  name: z.string().min(1).max(500),
+  branch_point_node_id: z.string().uuid(),
+  description: z.string().max(5_000).nullish(),
+});
+
+const updateCanonSchema = z.object({
+  setting: z.string().max(10_000).nullish(),
+  characters: z.array(z.string().max(1_000)).max(100).nullish(),
+  tone: z.string().max(2_000).nullish(),
+  rules: z.array(z.string().max(1_000)).max(100).nullish(),
+});
+
+const paginationSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+});
 
 const app = new Hono();
 
@@ -26,45 +90,48 @@ async function verifyTimelineOwnership(timelineId: string, userId: string) {
 
 // POST / — Create timeline
 app.post('/', async (c) => {
-  console.log('[Timelines API] POST / - Create timeline');
   try {
     const { sub: userId } = c.get('user');
-    console.log('[Timelines API] User ID:', userId);
-    
     const body = await c.req.json();
-    console.log('[Timelines API] Request body:', JSON.stringify(body));
 
-    if (!body.title || typeof body.title !== 'string') {
-      console.log('[Timelines API] Validation failed: title is required');
-      return c.json({ error: 'title is required' }, 400);
+    const parsed = createTimelineSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.issues[0].message }, 400);
     }
+    const { title, summary, system_prompt, visual_theme, vision_blurb, tags, status } = parsed.data;
 
-    console.log('[Timelines API] Inserting timeline into database...');
     const [timeline] = await db
       .insert(timelines)
       .values({
         userId,
-        title: body.title,
-        summary: body.summary ?? null,
-        systemPrompt: body.system_prompt ?? null,
-        visualTheme: body.visual_theme ?? null,
-        visionBlurb: body.vision_blurb ?? null,
-        tags: body.tags ?? null,
-        status: body.status ?? 'draft',
+        title,
+        summary: summary ?? null,
+        systemPrompt: system_prompt ?? null,
+        visualTheme: visual_theme ?? null,
+        visionBlurb: vision_blurb ?? null,
+        tags: tags ?? null,
+        status: status ?? 'draft',
       })
       .returning();
 
-    console.log('[Timelines API] Timeline created:', timeline.id);
     return c.json(timeline, 201);
   } catch (error) {
-    console.error('[Timelines API] Error creating timeline:', error);
+    console.error('[Timelines] Error creating timeline:', error);
     return c.json({ error: 'Failed to create timeline' }, 500);
   }
 });
 
-// GET / — List user's timelines
+// GET / — List user's timelines (paginated)
 app.get('/', async (c) => {
   const { sub: userId } = c.get('user');
+
+  const queryParams = paginationSchema.safeParse({
+    limit: c.req.query('limit'),
+    offset: c.req.query('offset'),
+  });
+  const { limit, offset } = queryParams.success
+    ? queryParams.data
+    : { limit: 50, offset: 0 };
 
   const rows = await db
     .select({
@@ -83,7 +150,9 @@ app.get('/', async (c) => {
     })
     .from(timelines)
     .where(eq(timelines.userId, userId))
-    .orderBy(desc(timelines.updatedAt));
+    .orderBy(desc(timelines.updatedAt))
+    .limit(limit)
+    .offset(offset);
 
   return c.json(rows);
 });
@@ -118,14 +187,20 @@ app.patch('/:id', async (c) => {
   if (!existing) return c.json({ error: 'Not found' }, 404);
 
   const body = await c.req.json();
+  const parsed = updateTimelineSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400);
+  }
+
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  if (body.title !== undefined) updates.title = body.title;
-  if (body.summary !== undefined) updates.summary = body.summary;
-  if (body.system_prompt !== undefined) updates.systemPrompt = body.system_prompt;
-  if (body.visual_theme !== undefined) updates.visualTheme = body.visual_theme;
-  if (body.vision_blurb !== undefined) updates.visionBlurb = body.vision_blurb;
-  if (body.tags !== undefined) updates.tags = body.tags;
-  if (body.status !== undefined) updates.status = body.status;
+  const d = parsed.data;
+  if (d.title !== undefined) updates.title = d.title;
+  if (d.summary !== undefined) updates.summary = d.summary;
+  if (d.system_prompt !== undefined) updates.systemPrompt = d.system_prompt;
+  if (d.visual_theme !== undefined) updates.visualTheme = d.visual_theme;
+  if (d.vision_blurb !== undefined) updates.visionBlurb = d.vision_blurb;
+  if (d.tags !== undefined) updates.tags = d.tags;
+  if (d.status !== undefined) updates.status = d.status;
 
   const [updated] = await db
     .update(timelines)
@@ -159,22 +234,37 @@ app.post('/:timelineId/nodes', async (c) => {
   if (!existing) return c.json({ error: 'Not found' }, 404);
 
   const body = await c.req.json();
-  if (!body.title || typeof body.title !== 'string') {
-    return c.json({ error: 'title is required' }, 400);
+  const parsed = createNodeSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400);
+  }
+  const d = parsed.data;
+
+  // Validate parent_id belongs to the same timeline
+  if (d.parent_id) {
+    const parent = await db.query.timelineNodes.findFirst({
+      where: and(
+        eq(timelineNodes.id, d.parent_id),
+        eq(timelineNodes.timelineId, timelineId),
+      ),
+    });
+    if (!parent) {
+      return c.json({ error: 'parent_id does not belong to this timeline' }, 400);
+    }
   }
 
   const [node] = await db
     .insert(timelineNodes)
     .values({
       timelineId,
-      parentId: body.parent_id ?? null,
-      label: body.label ?? null,
-      title: body.title,
-      content: body.content ?? '',
-      status: body.status ?? 'draft',
-      positionX: body.position_x ?? 0,
-      positionY: body.position_y ?? 0,
-      sortOrder: body.sort_order ?? 0,
+      parentId: d.parent_id ?? null,
+      label: d.label ?? null,
+      title: d.title,
+      content: d.content,
+      status: d.status,
+      positionX: d.position_x,
+      positionY: d.position_y,
+      sortOrder: d.sort_order,
     })
     .returning();
 
@@ -247,16 +337,35 @@ app.patch('/:timelineId/nodes/:nodeId', async (c) => {
   if (!existing) return c.json({ error: 'Not found' }, 404);
 
   const body = await c.req.json();
+  const parsed = updateNodeSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400);
+  }
+  const d = parsed.data;
+
+  // Validate parent_id belongs to the same timeline
+  if (d.parent_id) {
+    const parent = await db.query.timelineNodes.findFirst({
+      where: and(
+        eq(timelineNodes.id, d.parent_id),
+        eq(timelineNodes.timelineId, timelineId),
+      ),
+    });
+    if (!parent) {
+      return c.json({ error: 'parent_id does not belong to this timeline' }, 400);
+    }
+  }
+
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  if (body.title !== undefined) updates.title = body.title;
-  if (body.content !== undefined) updates.content = body.content;
-  if (body.label !== undefined) updates.label = body.label;
-  if (body.status !== undefined) updates.status = body.status;
-  if (body.parent_id !== undefined) updates.parentId = body.parent_id;
-  if (body.position_x !== undefined) updates.positionX = body.position_x;
-  if (body.position_y !== undefined) updates.positionY = body.position_y;
-  if (body.sort_order !== undefined) updates.sortOrder = body.sort_order;
-  if (body.image_url !== undefined) updates.imageUrl = body.image_url;
+  if (d.title !== undefined) updates.title = d.title;
+  if (d.content !== undefined) updates.content = d.content;
+  if (d.label !== undefined) updates.label = d.label;
+  if (d.status !== undefined) updates.status = d.status;
+  if (d.parent_id !== undefined) updates.parentId = d.parent_id;
+  if (d.position_x !== undefined) updates.positionX = d.position_x;
+  if (d.position_y !== undefined) updates.positionY = d.position_y;
+  if (d.sort_order !== undefined) updates.sortOrder = d.sort_order;
+  if (d.image_url !== undefined) updates.imageUrl = d.image_url;
 
   const [updated] = await db
     .update(timelineNodes)
@@ -325,11 +434,21 @@ app.post('/:timelineId/branches', async (c) => {
   if (!existing) return c.json({ error: 'Not found' }, 404);
 
   const body = await c.req.json();
-  if (!body.name || typeof body.name !== 'string') {
-    return c.json({ error: 'name is required' }, 400);
+  const parsed = createBranchSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400);
   }
-  if (!body.branch_point_node_id || typeof body.branch_point_node_id !== 'string') {
-    return c.json({ error: 'branch_point_node_id is required' }, 400);
+  const d = parsed.data;
+
+  // Validate branch_point_node_id belongs to this timeline
+  const branchPointNode = await db.query.timelineNodes.findFirst({
+    where: and(
+      eq(timelineNodes.id, d.branch_point_node_id),
+      eq(timelineNodes.timelineId, timelineId),
+    ),
+  });
+  if (!branchPointNode) {
+    return c.json({ error: 'branch_point_node_id does not belong to this timeline' }, 400);
   }
 
   const result = await db.transaction(async (tx) => {
@@ -337,9 +456,9 @@ app.post('/:timelineId/branches', async (c) => {
       .insert(branches)
       .values({
         timelineId,
-        branchPointNodeId: body.branch_point_node_id,
-        name: body.name,
-        description: body.description ?? null,
+        branchPointNodeId: d.branch_point_node_id,
+        name: d.name,
+        description: d.description ?? null,
       })
       .returning();
 
@@ -423,14 +542,19 @@ app.put('/:timelineId/branches/:branchId/canon', async (c) => {
   if (!branch) return c.json({ error: 'Not found' }, 404);
 
   const body = await c.req.json();
+  const parsed = updateCanonSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0].message }, 400);
+  }
+  const d = parsed.data;
 
   const [updated] = await db
     .update(branchCanon)
     .set({
-      setting: body.setting ?? null,
-      characters: body.characters ?? null,
-      tone: body.tone ?? null,
-      rules: body.rules ?? null,
+      setting: d.setting ?? null,
+      characters: d.characters ?? null,
+      tone: d.tone ?? null,
+      rules: d.rules ?? null,
       updatedAt: new Date(),
     })
     .where(eq(branchCanon.branchId, branchId))
