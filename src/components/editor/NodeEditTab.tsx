@@ -7,9 +7,10 @@ interface NodeEditTabProps {
   node: TimelineNode;
   onSave: (nodeId: string, updates: { label: string; plotSummary: string }) => void | Promise<void>;
   onDelete: () => void;
+  onRegenerateImage: () => void;
 }
 
-export function NodeEditTab({ node, onSave, onDelete }: NodeEditTabProps) {
+export function NodeEditTab({ node, onSave, onDelete, onRegenerateImage }: NodeEditTabProps) {
   const [label, setLabel] = useState(node.label);
   const [plotSummary, setPlotSummary] = useState(node.plotSummary);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -108,6 +109,14 @@ export function NodeEditTab({ node, onSave, onDelete }: NodeEditTabProps) {
           onClick={() => onSave(node.id, { label, plotSummary })}
         >
           SAVE CHANGES
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRegenerateImage}
+          disabled={node.status === "generating"}
+        >
+          {node.status === "generating" ? "GENERATING..." : "REGEN IMAGE"}
         </Button>
         <Button
           variant="ghost"

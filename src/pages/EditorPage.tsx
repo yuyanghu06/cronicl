@@ -395,6 +395,7 @@ export function EditorPage() {
               onSave={onSaveNode}
               onDelete={onDeleteNode}
               onGenerateBranch={onGenerateBranch}
+              onRegenerateImage={generateImageForNode}
               onPreviewImage={() => setLightboxUrl(selectedNode.imageUrl ?? null)}
             />
           )}

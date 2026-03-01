@@ -6,17 +6,18 @@ import { NodeEditTab } from "./NodeEditTab";
 import { NodeBranchTab } from "./NodeBranchTab";
 import type { TimelineNode } from "@/types/node";
 
-type Tab = "EDIT" | "GENERATE";
+type Tab = "EDIT" | "BRANCH";
 
 interface NodePanelProps {
   node: TimelineNode;
   onSave: (nodeId: string, updates: { label: string; plotSummary: string }) => void | Promise<void>;
   onDelete: (nodeId: string) => void;
   onGenerateBranch: (fromNodeId: string, description: string) => void | Promise<void>;
+  onRegenerateImage: (nodeId: string) => void;
   onPreviewImage?: () => void;
 }
 
-export function NodePanel({ node, onSave, onDelete, onGenerateBranch, onPreviewImage }: NodePanelProps) {
+export function NodePanel({ node, onSave, onDelete, onGenerateBranch, onRegenerateImage, onPreviewImage }: NodePanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("EDIT");
 
   // Reset to EDIT tab on node change
@@ -24,7 +25,7 @@ export function NodePanel({ node, onSave, onDelete, onGenerateBranch, onPreviewI
     setActiveTab("EDIT");
   }, [node.id]);
 
-  const tabs: Tab[] = ["EDIT", "GENERATE"];
+  const tabs: Tab[] = ["EDIT", "BRANCH"];
 
   return (
     <div className="flex flex-col h-full">
@@ -90,6 +91,7 @@ export function NodePanel({ node, onSave, onDelete, onGenerateBranch, onPreviewI
             node={node}
             onSave={onSave}
             onDelete={() => onDelete(node.id)}
+            onRegenerateImage={() => onRegenerateImage(node.id)}
           />
         ) : (
           <NodeBranchTab
