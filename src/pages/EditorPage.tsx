@@ -9,6 +9,7 @@ import { CourierText } from "@/components/ui/CourierText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { GitBranch, Save } from "lucide-react";
 import type { TimelineNode } from "@/types/node.ts";
+import type { SuggestionState, GhostNode } from "@/types/suggestion.ts";
 import { api } from "@/lib/api.ts";
 import {
   mapBackendNodesToTimelineNodes,
@@ -25,6 +26,12 @@ export function EditorPage() {
   const [nodes, setNodes] = useState<TimelineNode[]>([]);
   const [projectName, setProjectName] = useState("LOADING...");
   const [isLoading, setIsLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState<SuggestionState>({
+    ghostNodes: [],
+    sourceNodeId: null,
+    status: "idle",
+    error: null,
+  });
   const timelineIdRef = useRef<string | null>(null);
   const abortRef = useRef(false);
   const generatingRef = useRef(new Set<string>());
@@ -344,6 +351,180 @@ export function EditorPage() {
     generateImageForNode(newNodeId, fromNode.plotSummary || undefined);
   };
 
+  // --- Suggestion handlers ---
+
+  const IDLE_SUGGESTIONS: SuggestionState = {
+    ghostNodes: [],
+    sourceNodeId: null,
+    status: "idle",
+    error: null,
+  };
+
+  function calculateGhostPosition(
+    sourceNode: TimelineNode,
+    index: number,
+    total: number,
+    existingNodes: TimelineNode[],
+  ) {
+    const x = sourceNode.position.x + 480;
+    const verticalSpacing = 200;
+    const totalHeight = (total - 1) * verticalSpacing;
+    const startY = sourceNode.position.y - totalHeight / 2;
+    let y = startY + index * verticalSpacing;
+
+    const isOverlapping = (cx: number, cy: number) =>
+      existingNodes.some(
+        (n) => Math.abs(n.position.x - cx) < 280 && Math.abs(n.position.y - cy) < 180,
+      );
+    while (isOverlapping(x, y)) y += 200;
+
+    return { x, y };
+  }
+
+  const onRequestSuggestions = useCallback(
+    async (nodeId: string) => {
+      const tid = timelineIdRef.current;
+      if (!tid) return;
+
+      setSuggestions({
+        ghostNodes: [],
+        sourceNodeId: nodeId,
+        status: "loading",
+        error: null,
+      });
+
+      try {
+        const res = await api.post<{
+          ghost_nodes: { title: string; summary: string; tone: string; direction_type: string }[];
+        }>("/api/ai/suggest-from-timeline", {
+          timelineId: tid,
+          nodeId,
+          numSuggestions: 3,
+        });
+
+        const sourceNode = nodes.find((n) => n.id === nodeId);
+        if (!sourceNode) {
+          setSuggestions(IDLE_SUGGESTIONS);
+          return;
+        }
+
+        const ghostNodes: GhostNode[] = (res.ghost_nodes ?? []).map(
+          (gn, index) => ({
+            id: `ghost_${Date.now()}_${index}`,
+            title: gn.title,
+            summary: gn.summary,
+            tone: gn.tone,
+            direction_type: (gn.direction_type === "exploratory" ? "exploratory" : "aligned") as
+              | "aligned"
+              | "exploratory",
+            sourceNodeId: nodeId,
+            position: calculateGhostPosition(sourceNode, index, res.ghost_nodes.length, nodes),
+          }),
+        );
+
+        setSuggestions({
+          ghostNodes,
+          sourceNodeId: nodeId,
+          status: "ready",
+          error: null,
+        });
+      } catch {
+        setSuggestions({
+          ghostNodes: [],
+          sourceNodeId: nodeId,
+          status: "error",
+          error: "Failed to generate suggestions.",
+        });
+      }
+    },
+    [nodes],
+  );
+
+  const onAcceptGhostNode = useCallback(
+    async (ghostId: string) => {
+      const ghost = suggestions.ghostNodes.find((g) => g.id === ghostId);
+      if (!ghost) return;
+
+      const tid = timelineIdRef.current;
+      const label = ghost.title;
+      const content = ghost.summary;
+
+      let newNodeId = `${ghost.sourceNodeId}_suggest_${Date.now()}`;
+
+      if (tid) {
+        try {
+          const created = await api.post<BackendNode>(
+            `/api/timelines/${tid}/nodes`,
+            mapNodeToBackendCreate({
+              label,
+              plotSummary: content,
+              position: ghost.position,
+              status: "draft",
+              parentId: ghost.sourceNodeId,
+            }),
+          );
+          newNodeId = created.id;
+        } catch {
+          // Use client-generated ID as fallback
+        }
+      }
+
+      const newNode: TimelineNode = {
+        id: newNodeId,
+        label,
+        plotSummary: content,
+        metadata: {
+          createdAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+          wordCount: content.trim().split(/\s+/).length,
+        },
+        position: ghost.position,
+        connections: [],
+        type: "scene",
+        status: "draft",
+      };
+
+      setNodes((prev) => {
+        const updated = prev.map((n) =>
+          n.id === ghost.sourceNodeId
+            ? { ...n, connections: [...n.connections, newNodeId] }
+            : n,
+        );
+        return [...updated, newNode];
+      });
+
+      setSuggestions(IDLE_SUGGESTIONS);
+      setSelectedNodeId(newNodeId);
+
+      const sourceNode = nodes.find((n) => n.id === ghost.sourceNodeId);
+      generateImageForNode(newNodeId, sourceNode?.plotSummary || undefined);
+    },
+    [suggestions.ghostNodes, nodes, generateImageForNode],
+  );
+
+  const onDismissGhostNode = useCallback((ghostId: string) => {
+    setSuggestions((prev) => {
+      const remaining = prev.ghostNodes.filter((g) => g.id !== ghostId);
+      if (remaining.length === 0) {
+        return IDLE_SUGGESTIONS;
+      }
+      return { ...prev, ghostNodes: remaining };
+    });
+  }, []);
+
+  const onDismissSuggestions = useCallback(() => {
+    setSuggestions(IDLE_SUGGESTIONS);
+  }, []);
+
+  // Clear suggestions when selecting a different node
+  useEffect(() => {
+    if (
+      selectedNodeId !== suggestions.sourceNodeId &&
+      suggestions.status !== "idle"
+    ) {
+      setSuggestions(IDLE_SUGGESTIONS);
+    }
+  }, [selectedNodeId, suggestions.sourceNodeId, suggestions.status]);
+
   return (
     <AppShell
       topBarCenter={
@@ -381,6 +562,8 @@ export function EditorPage() {
             onSelectNode={setSelectedNodeId}
             onGenerateImage={generateImageForNode}
             onAddNode={onAddNode}
+            ghostNodes={suggestions.ghostNodes}
+            onGhostNodeClick={onAcceptGhostNode}
           />
         )}
 
@@ -397,6 +580,11 @@ export function EditorPage() {
               onGenerateBranch={onGenerateBranch}
               onRegenerateImage={generateImageForNode}
               onPreviewImage={() => setLightboxUrl(selectedNode.imageUrl ?? null)}
+              suggestions={suggestions}
+              onRequestSuggestions={onRequestSuggestions}
+              onAcceptGhostNode={onAcceptGhostNode}
+              onDismissGhostNode={onDismissGhostNode}
+              onDismissSuggestions={onDismissSuggestions}
             />
           )}
         </SidePanel>

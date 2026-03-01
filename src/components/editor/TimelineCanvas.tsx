@@ -1,10 +1,13 @@
-import { useRef, useState, useCallback, type MouseEvent, type WheelEvent } from "react";
+import { useRef, useState, useCallback, useMemo, type MouseEvent, type WheelEvent } from "react";
 import { motion } from "motion/react";
 import { TimelineNode } from "@/components/editor/TimelineNode";
 import { TimelineConnector } from "@/components/editor/TimelineConnector";
 import { TimelineRuler } from "@/components/editor/TimelineRuler";
 import { TimelineControls } from "@/components/editor/TimelineControls";
+import { GhostNode } from "@/components/editor/GhostNode";
 import type { TimelineNode as TNode } from "@/types/node";
+import type { GhostNode as GhostNodeType } from "@/types/suggestion";
+import type { GhostConnection } from "@/components/editor/TimelineConnector";
 
 interface TimelineCanvasProps {
   nodes: TNode[];
@@ -12,6 +15,8 @@ interface TimelineCanvasProps {
   onSelectNode: (id: string | null) => void;
   onGenerateImage?: (nodeId: string) => void;
   onAddNode: () => void;
+  ghostNodes?: GhostNodeType[];
+  onGhostNodeClick?: (ghostId: string) => void;
 }
 
 export function TimelineCanvas({
@@ -20,6 +25,8 @@ export function TimelineCanvas({
   onSelectNode,
   onGenerateImage,
   onAddNode,
+  ghostNodes,
+  onGhostNodeClick,
 }: TimelineCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: -20, y: -60 });
@@ -74,6 +81,14 @@ export function TimelineCanvas({
     setPan({ x: -20, y: -60 });
   }, []);
 
+  const ghostConnections = useMemo<GhostConnection[]>(() => {
+    if (!ghostNodes || ghostNodes.length === 0) return [];
+    return ghostNodes.map((g) => ({
+      fromId: g.sourceNodeId,
+      toPosition: g.position,
+    }));
+  }, [ghostNodes]);
+
   const handleCanvasClick = useCallback(
     (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest("[data-node]")) {
@@ -119,7 +134,7 @@ export function TimelineCanvas({
         <TimelineRuler nodes={nodes} />
 
         {/* Connectors (SVG) */}
-        <TimelineConnector nodes={nodes} />
+        <TimelineConnector nodes={nodes} ghostConnections={ghostConnections} />
 
         {/* Nodes */}
         {nodes.map((node, index) => (
@@ -145,6 +160,32 @@ export function TimelineCanvas({
               isSelected={selectedNodeId === node.id}
               onClick={() => onSelectNode(node.id)}
               onGenerateImage={onGenerateImage}
+            />
+          </motion.div>
+        ))}
+
+        {/* Ghost nodes */}
+        {ghostNodes?.map((ghost, index) => (
+          <motion.div
+            key={ghost.id}
+            data-node
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{
+              duration: 0.4,
+              delay: index * 0.08,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            style={{
+              position: "absolute",
+              left: ghost.position.x,
+              top: ghost.position.y,
+              transformOrigin: "center top",
+            }}
+          >
+            <GhostNode
+              ghost={ghost}
+              onClick={() => onGhostNodeClick?.(ghost.id)}
             />
           </motion.div>
         ))}

@@ -4,9 +4,11 @@ import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { NodeEditTab } from "./NodeEditTab";
 import { NodeBranchTab } from "./NodeBranchTab";
+import { NodeSuggestTab } from "./NodeSuggestTab";
 import type { TimelineNode } from "@/types/node";
+import type { SuggestionState } from "@/types/suggestion";
 
-type Tab = "EDIT" | "BRANCH";
+type Tab = "EDIT" | "BRANCH" | "SUGGEST";
 
 interface NodePanelProps {
   node: TimelineNode;
@@ -15,9 +17,26 @@ interface NodePanelProps {
   onGenerateBranch: (fromNodeId: string, description: string) => void | Promise<void>;
   onRegenerateImage: (nodeId: string) => void;
   onPreviewImage?: () => void;
+  suggestions: SuggestionState;
+  onRequestSuggestions: (nodeId: string) => void;
+  onAcceptGhostNode: (ghostId: string) => void;
+  onDismissGhostNode: (ghostId: string) => void;
+  onDismissSuggestions: () => void;
 }
 
-export function NodePanel({ node, onSave, onDelete, onGenerateBranch, onRegenerateImage, onPreviewImage }: NodePanelProps) {
+export function NodePanel({
+  node,
+  onSave,
+  onDelete,
+  onGenerateBranch,
+  onRegenerateImage,
+  onPreviewImage,
+  suggestions,
+  onRequestSuggestions,
+  onAcceptGhostNode,
+  onDismissGhostNode,
+  onDismissSuggestions,
+}: NodePanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("EDIT");
 
   // Reset to EDIT tab on node change
@@ -25,7 +44,7 @@ export function NodePanel({ node, onSave, onDelete, onGenerateBranch, onRegenera
     setActiveTab("EDIT");
   }, [node.id]);
 
-  const tabs: Tab[] = ["EDIT", "BRANCH"];
+  const tabs: Tab[] = ["EDIT", "BRANCH", "SUGGEST"];
 
   return (
     <div className="flex flex-col h-full">
@@ -86,17 +105,28 @@ export function NodePanel({ node, onSave, onDelete, onGenerateBranch, onRegenera
 
       {/* Tab content */}
       <div className="flex-1 min-h-0">
-        {activeTab === "EDIT" ? (
+        {activeTab === "EDIT" && (
           <NodeEditTab
             node={node}
             onSave={onSave}
             onDelete={() => onDelete(node.id)}
             onRegenerateImage={() => onRegenerateImage(node.id)}
           />
-        ) : (
+        )}
+        {activeTab === "BRANCH" && (
           <NodeBranchTab
             node={node}
             onGenerateBranch={onGenerateBranch}
+          />
+        )}
+        {activeTab === "SUGGEST" && (
+          <NodeSuggestTab
+            node={node}
+            suggestions={suggestions}
+            onRequestSuggestions={onRequestSuggestions}
+            onAcceptGhostNode={onAcceptGhostNode}
+            onDismissGhostNode={onDismissGhostNode}
+            onDismissSuggestions={onDismissSuggestions}
           />
         )}
       </div>
