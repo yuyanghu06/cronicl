@@ -37,15 +37,20 @@ export const aiResponses: AIStageResponse[] = [
   {
     stage: 3,
     message:
-      "CHARACTER PROFILE INDEXED. CONFLICT VECTOR ESTABLISHED.\n\nOne final parameter before I can generate your timeline.\n\nHow do you want to structure this? Classic three-act? Five-act? Non-linear? Tell me how many acts and any structural preferences.",
+      "CHARACTER PROFILE INDEXED. CONFLICT VECTOR ESTABLISHED.\n\nNow I need the narrative skeleton.\n\nHow do you want to structure this? Classic three-act? Five-act? Non-linear? Tell me how many acts and any structural preferences.",
   },
   {
     stage: 4,
+    message:
+      "STRUCTURE LOCKED.\n\nOne final parameter — the visual layer.\n\nDescribe the visual style you want for your storyboard frames. Think art direction: illustration style, color palette, lighting, mood. For example: \"dark noir with neon accents\" or \"Studio Ghibli watercolors\" or \"gritty documentary realism.\"",
+  },
+  {
+    stage: 5,
     message: "PROCESSING",
     disableInput: true,
   },
   {
-    stage: 5,
+    stage: 6,
     message:
       "TIMELINE READY.\n\n12 nodes across 3 acts. 2 branch points identified. Narrative coherence score: 94.2%.\n\nYour story architecture has been generated and is ready for review.",
   },

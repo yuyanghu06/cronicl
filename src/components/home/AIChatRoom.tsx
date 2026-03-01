@@ -126,15 +126,15 @@ export function AIChatRoom({
 
       const nextStage = stage + 1;
 
-      if (nextStage <= 3) {
+      if (nextStage <= 4) {
         // AI responds with next question after a delay
         setTimeout(() => {
           addMessage("ai", aiResponses[nextStage].message);
           setStage(nextStage);
         }, 800);
-      } else if (nextStage === 4) {
+      } else if (nextStage === 5) {
         // Processing state — create timeline + generate nodes via AI
-        setStage(4);
+        setStage(5);
         setIsProcessing(true);
         setCreateError(null);
 
@@ -143,7 +143,7 @@ export function AIChatRoom({
             const msgs = userMessagesRef.current;
             const title = msgs[0]?.slice(0, 100) || "Untitled Project";
             const summary = msgs.slice(1, 3).join(" ") || undefined;
-            const systemPrompt = msgs.join("\n\n") || undefined;
+            const systemPrompt = msgs.slice(0, 4).join("\n\n") || undefined;
 
             // 1. Create the timeline
             const timeline = await api.post<BackendTimeline>("/api/timelines", {
@@ -152,11 +152,14 @@ export function AIChatRoom({
               system_prompt: systemPrompt,
             });
 
-            // 2. Parse desired node count from structure answer (stage 3)
+            // 2. Parse desired node count from structure answer (stage 3, index 3)
             const numNodes = parseActCount(msgs[3] || "");
 
-            // 3. Try AI structure + visual theme generation in parallel
-            const storyContext = msgs.join("\n\n");
+            // 3. User's explicit visual style input (stage 4, index 4)
+            const visualStyleInput = msgs[4] || "";
+
+            // 4. Try AI structure + visual theme generation in parallel
+            const storyContext = msgs.slice(0, 4).join("\n\n");
             const [structureResult, visualThemeResult] = await Promise.allSettled([
               api.post<AIStructureResponse>("/ai/generate-structure", {
                 story_context: storyContext,
@@ -164,6 +167,7 @@ export function AIChatRoom({
               }),
               api.post<{ visual_theme: string; model: string }>("/ai/generate-visual-theme", {
                 story_context: storyContext,
+                visual_style: visualStyleInput,
               }),
             ]);
 
@@ -214,12 +218,12 @@ export function AIChatRoom({
               "ai",
               `TIMELINE READY.\n\n${nodeCount} nodes generated (${source}). Narrative structure initialized.\n\nYour story architecture is ready for review.`,
             );
-            setStage(5);
+            setStage(6);
             setTimelineReady(true);
           } catch {
             setIsProcessing(false);
             setCreateError("Failed to create timeline. Try again.");
-            setStage(3); // Allow retry
+            setStage(4); // Allow retry
           }
         })();
       }
