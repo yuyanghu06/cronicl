@@ -191,6 +191,9 @@ export function EditorPage() {
     if (tid) {
       api.patch(`/api/timelines/${tid}/nodes/${nodeId}`, mapNodeToBackendUpdate(updates)).catch(() => {});
     }
+
+    // Regenerate storyboard image to reflect updated text
+    generateImageForNode(nodeId);
   };
 
   const onGenerateBranch = async (fromNodeId: string, description: string) => {
