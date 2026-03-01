@@ -130,9 +130,9 @@ export function startImageWorker(): void {
     },
     {
       connection: conn,
-      concurrency: 2,
+      concurrency: 5,
       limiter: {
-        max: 5,
+        max: 15,
         duration: 60_000,
       },
     }
@@ -142,7 +142,7 @@ export function startImageWorker(): void {
     console.error(`[ImageWorker] Job ${job?.id} failed:`, err.message);
   });
 
-  console.log('[ImageWorker] Started (concurrency: 2, rate: 5/min)');
+  console.log('[ImageWorker] Started (concurrency: 5, rate: 15/min)');
 }
 
 export async function stopImageWorker(): Promise<void> {

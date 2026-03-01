@@ -91,6 +91,113 @@ jobs.post('/images/generate', async (c) => {
   }
 });
 
+// POST /images/generate-batch — Submit image generation for multiple nodes
+jobs.post('/images/generate-batch', async (c) => {
+  try {
+    const { sub: userId } = c.get('user');
+    const body = await c.req.json<{
+      timelineId: string;
+      nodeIds: string[];
+    }>();
+
+    if (!body.timelineId || typeof body.timelineId !== 'string') {
+      return c.json({ error: 'timelineId is required' }, 400);
+    }
+    if (!Array.isArray(body.nodeIds) || body.nodeIds.length === 0) {
+      return c.json({ error: 'nodeIds must be a non-empty array' }, 400);
+    }
+    if (body.nodeIds.length > 50) {
+      return c.json({ error: 'Maximum 50 nodes per batch' }, 400);
+    }
+
+    // Verify timeline ownership
+    const timeline = await db.query.timelines.findFirst({
+      where: and(eq(timelines.id, body.timelineId), eq(timelines.userId, userId)),
+    });
+    if (!timeline) {
+      return c.json({ error: 'Timeline not found' }, 404);
+    }
+
+    // Load all requested nodes
+    const allNodes = await db.query.timelineNodes.findMany({
+      where: eq(timelineNodes.timelineId, body.timelineId),
+      columns: { id: true, title: true, content: true, imageUrl: true },
+    });
+    const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
+
+    const results: { nodeId: string; jobId?: string; status: string; error?: string }[] = [];
+    const queue = getImageQueue();
+
+    for (const nodeId of body.nodeIds) {
+      const node = nodeMap.get(nodeId);
+      if (!node) {
+        results.push({ nodeId, status: 'skipped', error: 'Node not found' });
+        continue;
+      }
+      if (node.imageUrl) {
+        results.push({ nodeId, status: 'already_exists' });
+        continue;
+      }
+
+      const prompt = [node.title, node.content].filter(Boolean).join(' — ') || 'A cinematic storyboard frame';
+      const jobData: ImageJobData = {
+        nodeId,
+        timelineId: body.timelineId,
+        prompt,
+        userId,
+      };
+
+      if (queue) {
+        const job = await queue.add('generate-image', jobData);
+        results.push({ nodeId, jobId: job.id, status: 'queued' });
+      } else {
+        // Sync fallback — fire concurrently (capped at 5)
+        results.push({ nodeId, status: 'processing' });
+      }
+    }
+
+    // Sync fallback: run all jobs concurrently with concurrency cap
+    if (!queue) {
+      const toProcess = body.nodeIds
+        .filter((id) => results.find((r) => r.nodeId === id)?.status === 'processing')
+        .map((nodeId) => {
+          const node = nodeMap.get(nodeId)!;
+          const prompt = [node.title, node.content].filter(Boolean).join(' — ') || 'A cinematic storyboard frame';
+          return { nodeId, timelineId: body.timelineId, prompt, userId } as ImageJobData;
+        });
+
+      const SYNC_CONCURRENCY = 5;
+      const settled: PromiseSettledResult<void>[] = [];
+      for (let i = 0; i < toProcess.length; i += SYNC_CONCURRENCY) {
+        const batch = toProcess.slice(i, i + SYNC_CONCURRENCY);
+        const batchResults = await Promise.allSettled(
+          batch.map((data) => processImageGeneration(data))
+        );
+        settled.push(...batchResults);
+      }
+
+      // Update result statuses
+      toProcess.forEach((data, idx) => {
+        const r = results.find((r) => r.nodeId === data.nodeId);
+        if (r) {
+          r.status = settled[idx].status === 'fulfilled' ? 'completed' : 'failed';
+          if (settled[idx].status === 'rejected') {
+            r.error = (settled[idx] as PromiseRejectedResult).reason?.message ?? 'Unknown error';
+          }
+        }
+      });
+    }
+
+    return c.json({ jobs: results });
+  } catch (error) {
+    console.error('[Jobs] Batch image generation error:', error);
+    return c.json(
+      { error: error instanceof Error ? error.message : 'Batch image generation failed' },
+      500
+    );
+  }
+});
+
 // GET /images/jobs/:jobId — Poll job status
 jobs.get('/images/jobs/:jobId', authMiddleware, async (c) => {
   try {
