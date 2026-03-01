@@ -54,7 +54,7 @@ export function EditorPage() {
       try {
         const res = await api.post<{ image: string; mimeType: string }>(
           "/api/generate/image",
-          { prompt }
+          { prompt, timelineId: timelineIdRef.current ?? undefined }
         );
         if (abortRef.current) return;
 
