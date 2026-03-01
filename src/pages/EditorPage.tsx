@@ -7,7 +7,7 @@ import { NodePanel } from "@/components/editor/NodePanel";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { CourierText } from "@/components/ui/CourierText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
-import { GitBranch, Save } from "lucide-react";
+import { GitBranch, Save, Users } from "lucide-react";
 import type { TimelineNode } from "@/types/node.ts";
 import type { SuggestionState, GhostNode } from "@/types/suggestion.ts";
 import { api } from "@/lib/api.ts";
@@ -18,6 +18,8 @@ import {
 } from "@/lib/mappers.ts";
 import type { BackendTimeline, BackendNode } from "@/lib/mappers.ts";
 import { DEMO_PROJECT_ID, DEMO_PROJECT, DEMO_TIMELINE } from "@/data/demo";
+import { CharacterBiblePanel } from "@/components/CharacterBiblePanel";
+import type { CharacterBibleEntry } from "@/types/character";
 
 export function EditorPage() {
   const { projectId } = useParams();
@@ -32,6 +34,8 @@ export function EditorPage() {
     status: "idle",
     error: null,
   });
+  const [characterBibleOpen, setCharacterBibleOpen] = useState(false);
+  const [characters, setCharacters] = useState<CharacterBibleEntry[]>([]);
   const timelineIdRef = useRef<string | null>(null);
   const abortRef = useRef(false);
   const generatingRef = useRef(new Set<string>());
@@ -276,7 +280,15 @@ export function EditorPage() {
         setNodes(mapped);
         setIsLoading(false);
 
-        // 2. Lazy-load images from DB
+        // 2. Load character bible (fire-and-forget — not blocking)
+        api
+          .get<CharacterBibleEntry[]>(`/api/timelines/${timeline.id}/characters`)
+          .then((chars) => {
+            if (!cancelled) setCharacters(chars);
+          })
+          .catch((err) => console.warn('[Editor] Failed to load character bible:', err));
+
+        // 3. Lazy-load images from DB
         try {
           const images = await api.get<{ id: string; imageUrl: string }[]>(
             `/api/timelines/${timeline.id}/nodes/images`
@@ -341,7 +353,8 @@ export function EditorPage() {
     // Persist to backend (fire-and-forget)
     const tid = timelineIdRef.current;
     if (tid) {
-      api.patch(`/api/timelines/${tid}/nodes/${nodeId}`, mapNodeToBackendUpdate(updates)).catch(() => {});
+      api.patch(`/api/timelines/${tid}/nodes/${nodeId}`, mapNodeToBackendUpdate(updates))
+        .catch((err) => console.error('[Editor] Failed to persist node update:', err));
     }
 
     // Regenerate storyboard image to reflect updated text
@@ -678,6 +691,15 @@ export function EditorPage() {
       }
       topBarRight={
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setCharacterBibleOpen((v) => !v)}
+            className={`transition-colors cursor-pointer bg-transparent border-none ${
+              characterBibleOpen ? "text-fg-bright" : "text-fg-muted hover:text-fg-bright"
+            }`}
+            title="Character Bible"
+          >
+            <Users size={16} strokeWidth={1.5} />
+          </button>
           <button className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none">
             <GitBranch size={16} strokeWidth={1.5} />
           </button>
@@ -732,6 +754,16 @@ export function EditorPage() {
             />
           )}
         </SidePanel>
+
+        {timelineIdRef.current && (
+          <CharacterBiblePanel
+            open={characterBibleOpen}
+            onClose={() => setCharacterBibleOpen(false)}
+            timelineId={timelineIdRef.current}
+            characters={characters}
+            onCharactersChange={setCharacters}
+          />
+        )}
       </div>
 
       {/* Empty state overlay when no nodes */}
