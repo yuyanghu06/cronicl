@@ -13,6 +13,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1000.0",
     "@hono/node-server": "^1.13.7",
     "bullmq": "^5.70.1",
     "drizzle-kit": "^0.30.1",

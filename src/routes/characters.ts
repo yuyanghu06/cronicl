@@ -5,6 +5,7 @@ import { timelines, characterBible } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { generateImage } from '../services/ai';
 import { buildPortraitGenerationPrompt, type StoryContext } from '../services/imagePrompts';
+import { uploadImage } from '../lib/r2';
 
 const characters = new Hono<{ Variables: { user: { sub: string } } }>();
 
@@ -163,11 +164,13 @@ characters.post('/:characterId/generate-portrait', async (c) => {
     return c.json({ error: 'Portrait generation returned an unsupported format' }, 502);
   }
 
-  const dataUrl = `data:${result.mimeType};base64,${result.image}`;
+  const imageUrl =
+    (await uploadImage(result.image, result.mimeType, 'portraits')) ??
+    `data:${result.mimeType};base64,${result.image}`;
 
   const [updated] = await db
     .update(characterBible)
-    .set({ referenceImageUrl: dataUrl, updatedAt: new Date() })
+    .set({ referenceImageUrl: imageUrl, updatedAt: new Date() })
     .where(and(eq(characterBible.id, characterId), eq(characterBible.timelineId, timelineId)))
     .returning();
 

@@ -37,4 +37,11 @@ export const env = {
   RAILWAY_OAUTH_CLIENT_ID: getOptionalEnv('RAILWAY_OAUTH_CLIENT_ID'),
   RAILWAY_OAUTH_CLIENT_SECRET: getOptionalEnv('RAILWAY_OAUTH_CLIENT_SECRET'),
   RAILWAY_OAUTH_CALLBACK_URL: getOptionalEnv('RAILWAY_OAUTH_CALLBACK_URL'),
+
+  // Optional Cloudflare R2 (image storage)
+  R2_ACCOUNT_ID: getOptionalEnv('R2_ACCOUNT_ID'),
+  R2_ACCESS_KEY_ID: getOptionalEnv('R2_ACCESS_KEY_ID'),
+  R2_SECRET_ACCESS_KEY: getOptionalEnv('R2_SECRET_ACCESS_KEY'),
+  R2_BUCKET_NAME: getOptionalEnv('R2_BUCKET_NAME'),
+  R2_PUBLIC_URL: getOptionalEnv('R2_PUBLIC_URL'),
 } as const;

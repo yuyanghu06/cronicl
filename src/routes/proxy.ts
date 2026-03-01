@@ -4,6 +4,7 @@ import { mediaRateLimiter } from '../middleware/ratelimit';
 import { quotaMiddleware } from '../middleware/quota';
 import { generateText, generateImage, generateStructuredText, type GenerateTextRequest, type GenerateImageRequest } from '../services/ai';
 import { recordUsage } from '../services/usage';
+import { uploadImage } from '../lib/r2';
 import { db } from '../db/client';
 import { timelines, characterBible } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -150,12 +151,17 @@ proxy.post('/generate/image', async (c) => {
       return c.json({ error: 'Image generation returned an unsupported format' }, 502);
     }
 
+    const imageUrl = await uploadImage(result.image, result.mimeType, 'generated');
+
     const { sub } = c.get('user');
     recordUsage(sub, '/api/generate/image').catch((err) =>
       console.error('Failed to record usage:', err)
     );
 
-    return c.json(result);
+    return c.json({
+      ...result,
+      imageUrl: imageUrl ?? undefined,
+    });
   } catch (error) {
     console.error('Image generation error:', error);
     return c.json(

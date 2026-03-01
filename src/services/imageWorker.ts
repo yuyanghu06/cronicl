@@ -5,6 +5,7 @@ import { timelines, timelineNodes, characterBible } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { generateImage, generateStructuredText } from './ai';
 import { recordUsage } from './usage';
+import { uploadImage } from '../lib/r2';
 import {
   buildSettingExtractionPrompt,
   buildCharacterExtractionPrompt,
@@ -92,12 +93,14 @@ export async function processImageGeneration(data: ImageJobData): Promise<void> 
     throw new Error(`Unexpected MIME type from provider: ${result.mimeType}`);
   }
 
-  const dataUrl = `data:${result.mimeType};base64,${result.image}`;
+  const imageUrl =
+    (await uploadImage(result.image, result.mimeType, 'nodes')) ??
+    `data:${result.mimeType};base64,${result.image}`;
 
   // Save to DB
   await db
     .update(timelineNodes)
-    .set({ imageUrl: dataUrl, updatedAt: new Date() })
+    .set({ imageUrl, updatedAt: new Date() })
     .where(
       and(eq(timelineNodes.id, nodeId), eq(timelineNodes.timelineId, timelineId))
     );
