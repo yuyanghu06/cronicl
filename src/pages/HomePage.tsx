@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
+import { ContextMenu, type ContextMenuItem } from "@/components/ui/ContextMenu";
 import { AIChatRoom } from "@/components/home/AIChatRoom";
 import { api } from "@/lib/api.ts";
 import { mapBackendToProject } from "@/lib/mappers.ts";
 import type { BackendTimelineListItem } from "@/lib/mappers.ts";
 import type { Project } from "@/types/project.ts";
-import { DEMO_PROJECT } from "@/data/demo";
-import { PanelLeftClose, PanelLeftOpen, BookOpen } from "lucide-react";
+import { DEMO_PROJECT, DEMO_PROJECT_ID } from "@/data/demo";
+import { PanelLeftClose, PanelLeftOpen, BookOpen, Trash2 } from "lucide-react";
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -19,6 +20,51 @@ export function HomePage() {
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [sessionId] = useState(
     () => `SES-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+  );
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    project: Project;
+  } | null>(null);
+
+  const handleProjectContextMenu = useCallback(
+    (e: React.MouseEvent, project: Project) => {
+      e.preventDefault();
+      // Don't show context menu for demo project
+      if (project.id === DEMO_PROJECT_ID) return;
+      setContextMenu({ x: e.clientX, y: e.clientY, project });
+    },
+    []
+  );
+
+  const handleDeleteProject = useCallback(
+    async (project: Project) => {
+      const confirmed = window.confirm(
+        `Delete "${project.name}"? This cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      try {
+        await api.delete(`/api/timelines/${project.id}`);
+        setProjects((prev) => prev.filter((p) => p.id !== project.id));
+      } catch {
+        // silently fail — project may already be deleted
+      }
+    },
+    []
+  );
+
+  const getContextMenuItems = useCallback(
+    (project: Project): ContextMenuItem[] => [
+      {
+        label: "Delete",
+        icon: <Trash2 size={14} strokeWidth={1.5} />,
+        variant: "danger",
+        onSelect: () => handleDeleteProject(project),
+      },
+    ],
+    [handleDeleteProject]
   );
 
   const loadProjects = async () => {
@@ -98,6 +144,7 @@ export function HomePage() {
                 <button
                   key={project.id}
                   onClick={() => navigate(`/editor/${project.id}`)}
+                  onContextMenu={(e) => handleProjectContextMenu(e, project)}
                   title={!sidebarExpanded ? project.name : undefined}
                   className={`w-full border-b border-border-subtle hover:bg-bg-hover transition-colors cursor-pointer bg-transparent flex items-center gap-3 ${
                     sidebarExpanded ? "text-left px-4 py-3" : "justify-center px-0 py-3"
@@ -133,6 +180,14 @@ export function HomePage() {
           />
         </div>
       </div>
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={getContextMenuItems(contextMenu.project)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </AppShell>
   );
 }
