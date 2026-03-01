@@ -304,18 +304,20 @@ ai.post('/generate-structure', async (c) => {
       }
     }
 
-    const prompt = `You are a story architect. Based on the following creative brief, generate exactly ${num_nodes} story beats that form a compelling narrative arc.
+    const prompt = `You are a story architect constructing the narrative spine for a cinematic project. Every beat you write will later be turned into a storyboard frame by an image model, so each summary must be visually concrete — describe what happens on screen, not abstract themes.
 
-Creative brief:
+CREATIVE BRIEF:
 ${story_context}${creatorSection}
 
-Return a JSON object with a "nodes" array containing exactly ${num_nodes} objects, each with:
-- "title": A short, evocative act/beat title (e.g. "The Awakening", "Descent into Shadow")
-- "summary": A 1-2 sentence description of what happens in this beat
+Generate exactly ${num_nodes} story beats forming a complete narrative arc with rising action, climax, and resolution.
 
-Structure them as a coherent act-based narrative with rising action, climax, and resolution. Make titles specific to this story, not generic labels.
+Each beat must:
+- Have a "title" that is short, evocative, and specific to THIS story (e.g. "The Furnace Room Confession", "Midnight on the Glacier"). Generic labels like "Rising Action" or "The Climax" are forbidden.
+- Have a "summary" of 1-2 sentences describing what physically happens in the scene: who is present, where they are, what they do, and what changes. Include enough spatial and visual detail that an image model could illustrate the moment.
 
-Return ONLY valid JSON: {"nodes": [{"title": "...", "summary": "..."}, ...]}`;
+Return JSON: {"nodes": [{"title": "...", "summary": "..."}, ...]}
+
+The ${num_nodes} beats must form a coherent arc grounded in the creative brief above. Every beat must be consistent with the world, characters, and tone established in the brief.`;
 
     const result = await generateStructuredText<StructureResponse>({
       prompt,
@@ -347,22 +349,30 @@ ai.post('/generate-visual-theme', async (c) => {
     const visual_style = typeof body.visual_style === 'string' ? body.visual_style.trim() : '';
 
     const visualDirective = visual_style
-      ? `\n\nCRITICAL — The creator has specified their desired visual style. This MUST be the primary influence on the output. Treat it as the art director's brief and build everything else around it:\n"${visual_style}"\n`
+      ? `\n\nART DIRECTOR'S BRIEF (this is the creator's primary visual intent — build everything around it):\n"${visual_style}"\n`
       : '';
 
-    const prompt = `You are a visual director for a cinematic storytelling platform. Based on the creative brief below, write a concise visual style guide that will direct all storyboard image generation for this project.${visualDirective}
+    const prompt = `You are a visual director writing a style guide that will be fed verbatim into an image-generation model (Gemini Nano Banana) for every storyboard frame of a cinematic project.${visualDirective}
 
-Cover these aspects in natural prose:
-- Art style (e.g., "dark watercolor illustration with ink wash textures", "hyper-realistic digital matte painting")
-- Color palette (name 4-6 dominant colors with their hex codes woven into the description)
-- Lighting (e.g., "low-key chiaroscuro with neon rim lighting")
-- Mood and atmosphere
-- Cinematography and composition (camera angles, framing, depth of field)
-- 2-3 reference aesthetics (films, artists, or visual works that capture the target look)
+Your output will be used as a [STYLE GUIDE] section in image-generation prompts. Write it as direct visual instructions that an image model can follow, using concrete, render-ready language.
 
-Be specific and evocative. Write 3-5 sentences total — enough to guide an image model, not a full essay.
+Cover ALL of the following in natural prose — each aspect must be specific enough that two different image models would produce visually similar results:
 
-Creative brief:
+1. ART MEDIUM & TECHNIQUE — name the exact medium (e.g. "dark watercolor illustration with ink wash textures and visible paper grain", "hyper-realistic digital matte painting with photographic depth of field"). Be precise about materiality: matte, glossy, textured, smooth.
+
+2. COLOR PALETTE — name 4-6 dominant colors with hex codes woven into the description (e.g. "deep midnight blue (#1a1a3e) dominates the shadows, punctuated by warm amber (#d4a017) from oil lanterns"). Describe which colors go where (shadows, highlights, accents, skin tones).
+
+3. LIGHTING — describe the quality, direction, and color temperature of light (e.g. "low-key chiaroscuro with a single warm source from upper-left, cool blue fill light in the shadows, no direct sunlight"). Name the lighting setup as a cinematographer would.
+
+4. MOOD & ATMOSPHERE — describe the emotional texture in visual terms: haze, fog, dust particles, rain, stillness, motion blur. Connect mood to rendering choices.
+
+5. CAMERA & COMPOSITION — specify default lens (e.g. "50mm standard lens"), depth of field, preferred framing (medium shots, close-ups), and any recurring compositional rules (rule of thirds, centered symmetry, leading lines).
+
+6. REFERENCE AESTHETICS — cite 2-3 specific films, photographers, illustrators, or art movements that capture the target look. Name the exact work, not just the artist.
+
+Write 4-6 sentences total. Every sentence must be a concrete visual instruction. The guide must be grounded in this specific story's world and tone — it should feel like it was written for this project alone.
+
+CREATIVE BRIEF:
 ${story_context}`;
 
     const result = await generateText({
@@ -392,16 +402,18 @@ ai.post('/generate-vision-blurb', async (c) => {
 
     const story_context = requireString(body, 'story_context', MAX_SYSTEM_PROMPT_LENGTH);
 
-    const prompt = `You are a creative director summarizing the overarching vision for a cinematic narrative project. Based on the creative brief below, write a short but detailed blurb (2-4 sentences) that captures:
+    const prompt = `You are a creative director writing the vision anchor for a cinematic narrative project. This blurb will be injected into every image-generation prompt as a [PROJECT VISION] block, so the image model stays locked to this story's world across all frames.
 
-- The core premise and central conflict
-- The world/setting in broad strokes
-- The emotional tone and thematic undercurrent
-- What makes this story visually and narratively distinctive
+Write a 2-4 sentence blurb that covers ALL of the following:
 
-This blurb will be used to keep every generated storyboard frame anchored to the project's overall vision. Be vivid and specific — not generic.
+1. PREMISE & CONFLICT — the central dramatic question driving the narrative, stated in one sentence.
+2. WORLD — the physical reality of the story: time period, geography, technology level, social structure. Be specific enough that an image model can render a random establishing shot from this world.
+3. TONE — the emotional undercurrent, described in visual terms (e.g. "melancholic stillness", "frantic neon-drenched paranoia", "sun-bleached nostalgia").
+4. VISUAL SIGNATURE — what makes this story visually distinctive: recurring motifs, symbolic objects, textural qualities, defining color associations.
 
-Creative brief:
+Every sentence must be concrete and grounded in this specific story. Generic phrases like "a tale of love and loss" or "a world unlike any other" are forbidden — name the specific world, the specific conflict, the specific visual identity.
+
+CREATIVE BRIEF:
 ${story_context}`;
 
     const result = await generateText({

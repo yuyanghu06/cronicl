@@ -5,6 +5,12 @@ import { timelines, timelineNodes } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { generateImage, generateStructuredText } from './ai';
 import { recordUsage } from './usage';
+import {
+  buildSettingExtractionPrompt,
+  buildCharacterExtractionPrompt,
+  buildImageGenerationPrompt,
+  type StoryContext,
+} from './imagePrompts';
 
 export interface ImageJobData {
   nodeId: string;
@@ -18,74 +24,43 @@ const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 export async function processImageGeneration(data: ImageJobData): Promise<void> {
   const { nodeId, timelineId, prompt: rawPrompt, userId } = data;
 
-  let prompt = rawPrompt;
   const sceneText = rawPrompt;
 
-  // Enrich prompt with timeline visual context
+  // Load story context for grounding
   const timeline = await db.query.timelines.findFirst({
     where: eq(timelines.id, timelineId),
-    columns: { visualTheme: true, systemPrompt: true },
+    columns: { visualTheme: true, systemPrompt: true, visionBlurb: true },
   });
 
-  if (timeline?.visualTheme) {
-    prompt = `You are generating a storyboard frame for a cinematic narrative.
+  const storyContext: StoryContext = {
+    visualTheme: timeline?.visualTheme,
+    systemPrompt: timeline?.systemPrompt,
+    visionBlurb: timeline?.visionBlurb,
+  };
 
-VISUAL STYLE GUIDE:
-${timeline.visualTheme}
-
-SCENE:
-${prompt}
-
-Generate an image that strictly follows the visual style guide above.`;
-  } else if (timeline?.systemPrompt) {
-    prompt = `You are generating a storyboard frame for a cinematic narrative.
-
-CREATIVE DIRECTION:
-${timeline.systemPrompt}
-
-SCENE:
-${prompt}
-
-Generate a visually striking image that matches the genre, tone, and world described above.`;
-  }
-
-  // Extract setting + characters in parallel
+  // Extract setting + characters in parallel (grounded in story context)
   const [settingResult, characterResult] = await Promise.allSettled([
     generateStructuredText<{ setting: string }>({
-      prompt: `Extract the physical setting/location/environment from this scene. Describe WHERE the scene takes place in one vivid, specific sentence (e.g. "A rain-soaked neon-lit alleyway in a cyberpunk megacity at night"). If no setting is described, infer the most likely environment from context.
-
-Return JSON: {"setting": "..."}
-
-Scene text:
-${sceneText}`,
+      prompt: buildSettingExtractionPrompt(sceneText, storyContext),
       model: 'gemini-2.5-flash-lite',
     }),
     generateStructuredText<{ characters: string[] }>({
-      prompt: `Extract the names of all characters (people, named entities) who are physically present or actively participating in this scene. Return ONLY characters who appear in the text. If no characters are mentioned, return an empty array.
-
-Return JSON: {"characters": ["Name1", "Name2"]}
-
-Scene text:
-${sceneText}`,
+      prompt: buildCharacterExtractionPrompt(sceneText, storyContext),
       model: 'gemini-2.5-flash-lite',
     }),
   ]);
 
-  if (settingResult.status === 'fulfilled') {
-    const setting = settingResult.value.data.setting;
-    if (setting) {
-      prompt += `\n\nSETTING (MANDATORY — the image MUST depict this environment): ${setting}`;
-    }
-  }
+  const extracted = {
+    setting: settingResult.status === 'fulfilled'
+      ? settingResult.value.data.setting ?? null
+      : null,
+    characters: characterResult.status === 'fulfilled'
+      ? characterResult.value.data.characters ?? []
+      : [],
+  };
 
-  if (characterResult.status === 'fulfilled') {
-    const chars = characterResult.value.data.characters ?? [];
-    if (chars.length > 0) {
-      prompt += `\n\nCHARACTERS IN THIS SCENE: ${chars.join(', ')}.\nDepict ONLY these characters. Do NOT include any other people or characters not listed above.`;
-    } else {
-      prompt += `\n\nNo named characters are present in this scene. Do NOT include any identifiable people or characters.`;
-    }
-  }
+  // Assemble final image prompt with labeled sections and priority ordering
+  const prompt = buildImageGenerationPrompt(sceneText, storyContext, extracted);
 
   const result = await generateImage({ prompt });
 

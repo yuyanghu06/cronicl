@@ -7,6 +7,12 @@ import { recordUsage } from '../services/usage';
 import { db } from '../db/client';
 import { timelines } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import {
+  buildSettingExtractionPrompt,
+  buildCharacterExtractionPrompt,
+  buildImageGenerationPrompt,
+  type StoryContext,
+} from '../services/imagePrompts';
 
 const MAX_PROMPT_LENGTH = 10_000;
 
@@ -63,88 +69,48 @@ proxy.post('/generate/image', async (c) => {
       return c.json({ error: `Prompt exceeds maximum length of ${MAX_PROMPT_LENGTH} characters` }, 400);
     }
 
-    // Preserve original scene text for character extraction (before style enrichment)
+    // Preserve original scene text for extraction (before style enrichment)
     const sceneText = prompt;
 
-    // Enrich prompt with timeline creative context when available
+    // Load story context for grounding
+    let storyContext: StoryContext = {};
     if (body.timelineId) {
       const timeline = await db.query.timelines.findFirst({
         where: eq(timelines.id, body.timelineId),
         columns: { visualTheme: true, systemPrompt: true, visionBlurb: true },
       });
-      const visionBlock = timeline?.visionBlurb
-        ? `\n\nPROJECT VISION:\n${timeline.visionBlurb}\n`
-        : '';
-
-      if (timeline?.visualTheme) {
-        prompt = `You are generating a storyboard frame for a cinematic narrative.
-${visionBlock}
-VISUAL STYLE GUIDE:
-${timeline.visualTheme}
-
-SCENE:
-${prompt}
-
-Generate an image that strictly follows the visual style guide and project vision above.`;
-      } else if (timeline?.systemPrompt) {
-        prompt = `You are generating a storyboard frame for a cinematic narrative.
-${visionBlock}
-CREATIVE DIRECTION:
-${timeline.systemPrompt}
-
-SCENE:
-${prompt}
-
-Generate a visually striking image that matches the genre, tone, and world described above.`;
-      } else if (timeline?.visionBlurb) {
-        prompt = `You are generating a storyboard frame for a cinematic narrative.
-${visionBlock}
-SCENE:
-${prompt}
-
-Generate an image that captures the project vision described above.`;
+      if (timeline) {
+        storyContext = {
+          visualTheme: timeline.visualTheme,
+          systemPrompt: timeline.systemPrompt,
+          visionBlurb: timeline.visionBlurb,
+        };
       }
     }
 
-    // Extract setting and characters from scene text in parallel
+    // Extract setting and characters in parallel (grounded in story context)
     const [settingResult, characterResult] = await Promise.allSettled([
       generateStructuredText<{ setting: string }>({
-        prompt: `Extract the physical setting/location/environment from this scene. Describe WHERE the scene takes place in one vivid, specific sentence (e.g. "A rain-soaked neon-lit alleyway in a cyberpunk megacity at night"). If no setting is described, infer the most likely environment from context.
-
-Return JSON: {"setting": "..."}
-
-Scene text:
-${sceneText}`,
+        prompt: buildSettingExtractionPrompt(sceneText, storyContext),
         model: 'gemini-2.5-flash-lite',
       }),
       generateStructuredText<{ characters: string[] }>({
-        prompt: `Extract the names of all characters (people, named entities) who are physically present or actively participating in this scene. Return ONLY characters who appear in the text. If no characters are mentioned, return an empty array.
-
-Return JSON: {"characters": ["Name1", "Name2"]}
-
-Scene text:
-${sceneText}`,
+        prompt: buildCharacterExtractionPrompt(sceneText, storyContext),
         model: 'gemini-2.5-flash-lite',
       }),
     ]);
 
-    // Setting is mandatory — always include it
-    if (settingResult.status === 'fulfilled') {
-      const setting = settingResult.value.data.setting;
-      if (setting) {
-        prompt += `\n\nSETTING (MANDATORY — the image MUST depict this environment): ${setting}`;
-      }
-    }
+    const extracted = {
+      setting: settingResult.status === 'fulfilled'
+        ? settingResult.value.data.setting ?? null
+        : null,
+      characters: characterResult.status === 'fulfilled'
+        ? characterResult.value.data.characters ?? []
+        : [],
+    };
 
-    // Characters
-    if (characterResult.status === 'fulfilled') {
-      const chars = characterResult.value.data.characters ?? [];
-      if (chars.length > 0) {
-        prompt += `\n\nCHARACTERS IN THIS SCENE: ${chars.join(', ')}.\nDepict ONLY these characters. Do NOT include any other people or characters not listed above.`;
-      } else {
-        prompt += `\n\nNo named characters are present in this scene. Do NOT include any identifiable people or characters.`;
-      }
-    }
+    // Assemble final image prompt with labeled sections and priority ordering
+    prompt = buildImageGenerationPrompt(sceneText, storyContext, extracted);
 
     const result = await generateImage({
       prompt,
