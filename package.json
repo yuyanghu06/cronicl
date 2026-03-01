@@ -14,9 +14,11 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
+    "bullmq": "^5.70.1",
     "drizzle-kit": "^0.30.1",
     "drizzle-orm": "^0.38.3",
     "hono": "^4.12.3",
+    "ioredis": "^5.10.0",
     "postgres": "^3.4.5"
   },
   "devDependencies": {

@@ -30,6 +30,9 @@ export const env = {
   GEMINI_API_KEY: getOptionalEnv('GEMINI_API_KEY'),
   OPENAI_API_KEY: getOptionalEnv('OPENAI_API_KEY'),
 
+  // Optional Redis (BullMQ job queue)
+  REDIS_URL: getOptionalEnv('REDIS_URL'),
+
   // Optional Railway OAuth
   RAILWAY_OAUTH_CLIENT_ID: getOptionalEnv('RAILWAY_OAUTH_CLIENT_ID'),
   RAILWAY_OAUTH_CLIENT_SECRET: getOptionalEnv('RAILWAY_OAUTH_CLIENT_SECRET'),

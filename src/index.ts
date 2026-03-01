@@ -9,7 +9,10 @@ import user from './routes/user';
 import proxy from './routes/proxy';
 import ai from './routes/ai';
 import timelines from './routes/timelines';
+import jobs from './routes/jobs';
 import { env } from './lib/env';
+import { startImageWorker, stopImageWorker } from './services/imageWorker';
+import { closeQueue } from './lib/queue';
 
 const app = new Hono();
 
@@ -26,6 +29,7 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 app.route('/auth', auth);
 app.route('/me', user);
 app.route('/api/timelines', timelines);
+app.route('/api/jobs', jobs);
 app.route('/api', proxy);
 app.route('/ai', ai);
 
@@ -47,9 +51,14 @@ const server = serve({
 
 console.log(`Server running at http://localhost:${env.PORT}`);
 
+// Start background worker (no-op if Redis is not configured)
+startImageWorker();
+
 // Graceful shutdown
-function shutdown() {
+async function shutdown() {
   console.log('Shutting down gracefully...');
+  await stopImageWorker();
+  await closeQueue();
   server.close(() => {
     console.log('HTTP server closed');
     process.exit(0);
