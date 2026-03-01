@@ -271,6 +271,56 @@ ai.post('/merge-propose', async (c) => {
   }
 });
 
+// ---------- POST /generate-structure ----------
+
+interface StructureNode {
+  title: string;
+  summary: string;
+}
+
+interface StructureResponse {
+  nodes: StructureNode[];
+}
+
+ai.post('/generate-structure', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    const story_context = requireString(body, 'story_context', MAX_SYSTEM_PROMPT_LENGTH);
+    const num_nodes = Math.min(10, Math.max(1, Number(body.num_nodes) || 5));
+
+    const prompt = `You are a story architect. Based on the following creative brief, generate exactly ${num_nodes} story beats that form a compelling narrative arc.
+
+Creative brief:
+${story_context}
+
+Return a JSON object with a "nodes" array containing exactly ${num_nodes} objects, each with:
+- "title": A short, evocative act/beat title (e.g. "The Awakening", "Descent into Shadow")
+- "summary": A 1-2 sentence description of what happens in this beat
+
+Structure them as a coherent act-based narrative with rising action, climax, and resolution. Make titles specific to this story, not generic labels.
+
+Return ONLY valid JSON: {"nodes": [{"title": "...", "summary": "..."}, ...]}`;
+
+    const result = await generateStructuredText<StructureResponse>({
+      prompt,
+      model: 'gemini-2.5-flash-lite',
+    });
+
+    const { sub } = c.get('user');
+    recordUsage(sub, '/ai/generate-structure').catch((err) =>
+      console.error('Failed to record usage:', err)
+    );
+
+    return c.json({
+      nodes: result.data.nodes ?? [],
+      model: result.model,
+    });
+  } catch (error) {
+    return handleError(c, error);
+  }
+});
+
 // ---------- POST /suggest-from-timeline ----------
 
 ai.post('/suggest-from-timeline', async (c) => {
