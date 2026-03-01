@@ -23,7 +23,10 @@ export interface GenerateImageResponse {
   model: string;
 }
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 function logRequest(endpoint: string, model: string, prompt: string) {
+  if (isProduction) return;
   console.log(`[Gemini API] Request to ${endpoint}`);
   console.log(`[Gemini API] Model: ${model}`);
   console.log(`[Gemini API] Prompt length: ${prompt.length} chars`);
@@ -31,6 +34,7 @@ function logRequest(endpoint: string, model: string, prompt: string) {
 }
 
 function logResponse(endpoint: string, status: number, body?: string) {
+  if (isProduction) return;
   console.log(`[Gemini API] Response from ${endpoint}: ${status}`);
   if (body) {
     console.log(`[Gemini API] Response body preview: ${body.slice(0, 500)}`);
@@ -59,6 +63,7 @@ export async function generateImage(req: GenerateImageRequest): Promise<Generate
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(30_000),
         body: JSON.stringify({
           contents: [{ parts: [{ text: req.prompt }] }],
           generationConfig: {
@@ -93,7 +98,7 @@ export async function generateImage(req: GenerateImageRequest): Promise<Generate
     }
 
     if (image) {
-      console.log(`[Gemini API] Image generated successfully, mimeType: ${mimeType}`);
+      if (!isProduction) console.log(`[Gemini API] Image generated successfully, mimeType: ${mimeType}`);
       return { image, mimeType, text, model };
     }
 
@@ -141,6 +146,7 @@ export async function generateStructuredText<T>(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(30_000),
       body: JSON.stringify({
         contents: [{ parts: [{ text: req.prompt }] }],
         generationConfig: {
@@ -162,13 +168,13 @@ export async function generateStructuredText<T>(
   const responseData = JSON.parse(responseText);
   const raw = responseData.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
-  console.log(`[Gemini API] Raw response text: ${raw.slice(0, 300)}...`);
+  if (!isProduction) console.log(`[Gemini API] Raw response text: ${raw.slice(0, 300)}...`);
 
   // Parse JSON with fallback chain
   let data: T;
   try {
     data = JSON.parse(raw);
-    console.log(`[Gemini API] Successfully parsed JSON response`);
+    if (!isProduction) console.log(`[Gemini API] Successfully parsed JSON response`);
   } catch (parseError) {
     console.error(`[Gemini API] JSON parse error:`, parseError);
     // Fallback: extract JSON from markdown fences
@@ -176,7 +182,7 @@ export async function generateStructuredText<T>(
     if (fenceMatch) {
       try {
         data = JSON.parse(fenceMatch[1].trim());
-        console.log(`[Gemini API] Successfully parsed JSON from markdown fence`);
+        if (!isProduction) console.log(`[Gemini API] Successfully parsed JSON from markdown fence`);
       } catch (fenceParseError) {
         console.error(`[Gemini API] Fence JSON parse error:`, fenceParseError);
         throw new Error(`Failed to parse AI response as JSON. Raw output: ${raw.slice(0, 500)}`);
@@ -207,6 +213,7 @@ export async function generateText(req: GenerateTextRequest): Promise<GenerateTe
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(30_000),
       body: JSON.stringify({
         contents: [{ parts: [{ text: req.prompt }] }],
         generationConfig: {
@@ -227,7 +234,7 @@ export async function generateText(req: GenerateTextRequest): Promise<GenerateTe
   const data = JSON.parse(responseText);
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
-  console.log(`[Gemini API] Text generated successfully, length: ${text.length} chars`);
+  if (!isProduction) console.log(`[Gemini API] Text generated successfully, length: ${text.length} chars`);
 
   return {
     text,

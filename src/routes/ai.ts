@@ -531,11 +531,9 @@ function handleError(c: any, error: unknown) {
 
   // AI response parse failures → 502
   if (message.includes('Failed to parse AI response')) {
+    console.error('AI unparseable response:', message.slice(0, 500));
     return c.json(
-      {
-        error: 'AI returned unparseable response',
-        raw_response: message.slice(0, 300),
-      },
+      { error: 'AI returned unparseable response' },
       502
     );
   }

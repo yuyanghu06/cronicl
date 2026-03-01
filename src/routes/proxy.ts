@@ -121,6 +121,13 @@ ${sceneText}`,
       model: body.model,
     });
 
+    // Validate MIME type before returning to client
+    const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!ALLOWED_IMAGE_TYPES.includes(result.mimeType)) {
+      console.error(`[Image] Unexpected MIME type from provider: ${result.mimeType}`);
+      return c.json({ error: 'Image generation returned an unsupported format' }, 502);
+    }
+
     const { sub } = c.get('user');
     recordUsage(sub, '/api/generate/image').catch((err) =>
       console.error('Failed to record usage:', err)

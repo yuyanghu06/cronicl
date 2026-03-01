@@ -40,9 +40,21 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
 // Start server
 console.log(`Starting server on port ${env.PORT}...`);
-serve({
+const server = serve({
   fetch: app.fetch,
   port: env.PORT,
 });
 
 console.log(`Server running at http://localhost:${env.PORT}`);
+
+// Graceful shutdown
+function shutdown() {
+  console.log('Shutting down gracefully...');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

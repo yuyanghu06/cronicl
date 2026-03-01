@@ -12,25 +12,37 @@ export const users = pgTable('users', {
 });
 
 // Used for opaque session tokens (tokenHash, userId, expiresAt, revokedAt)
-export const refreshTokens = pgTable('refresh_tokens', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .references(() => users.id, { onDelete: 'cascade' })
-    .notNull(),
-  tokenHash: text('token_hash').notNull(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  revokedAt: timestamp('revoked_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+export const refreshTokens = pgTable(
+  'refresh_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    tokenHashIdx: index('idx_refresh_tokens_token_hash').on(table.tokenHash),
+  })
+);
 
-export const authEvents = pgTable('auth_events', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
-  eventType: text('event_type').notNull(),
-  ipAddress: text('ip_address'),
-  userAgent: text('user_agent'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+export const authEvents = pgTable(
+  'auth_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    eventType: text('event_type').notNull(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('idx_auth_events_user_id').on(table.userId),
+  })
+);
 
 export const oauthIdentities = pgTable(
   'oauth_identities',
@@ -45,20 +57,27 @@ export const oauthIdentities = pgTable(
   },
   (table) => ({
     uniqueProviderSub: unique().on(table.provider, table.providerSub),
+    userIdIdx: index('idx_oauth_identities_user_id').on(table.userId),
   })
 );
 
-export const usageRecords = pgTable('usage_records', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
-    .references(() => users.id, { onDelete: 'cascade' })
-    .notNull(),
-  endpoint: text('endpoint').notNull(),
-  tokensIn: integer('tokens_in'),
-  tokensOut: integer('tokens_out'),
-  estimatedCostUsd: text('estimated_cost_usd'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+export const usageRecords = pgTable(
+  'usage_records',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    endpoint: text('endpoint').notNull(),
+    tokensIn: integer('tokens_in'),
+    tokensOut: integer('tokens_out'),
+    estimatedCostUsd: text('estimated_cost_usd'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    userIdCreatedAtIdx: index('idx_usage_records_user_id_created_at').on(table.userId, table.createdAt),
+  })
+);
 
 export const userQuotas = pgTable('user_quotas', {
   userId: uuid('user_id')
@@ -112,6 +131,7 @@ export const timelineNodes = pgTable(
   },
   (table) => ({
     timelineIdIdx: index('idx_timeline_nodes_timeline_id').on(table.timelineId),
+    parentIdIdx: index('idx_timeline_nodes_parent_id').on(table.parentId),
   })
 );
 

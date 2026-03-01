@@ -14,6 +14,8 @@ const allowedOrigins = [
   'http://localhost:3000',
 ].filter(Boolean) as string[];
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 export const corsMiddleware = cors({
   origin: (origin) => {
     if (!origin) return allowedOrigins[0];
@@ -22,5 +24,5 @@ export const corsMiddleware = cors({
   credentials: true,
   allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400,
+  maxAge: isProduction ? 86400 : 3600,
 });

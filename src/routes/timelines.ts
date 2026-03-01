@@ -57,7 +57,7 @@ app.post('/', async (c) => {
     return c.json(timeline, 201);
   } catch (error) {
     console.error('[Timelines API] Error creating timeline:', error);
-    return c.json({ error: 'Failed to create timeline', details: String(error) }, 500);
+    return c.json({ error: 'Failed to create timeline' }, 500);
   }
 });
 
