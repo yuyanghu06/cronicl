@@ -7,7 +7,7 @@ import {
   branches,
   branchCanon,
 } from '../db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, isNotNull } from 'drizzle-orm';
 import { getAncestorPath } from '../services/context';
 
 const app = new Hono();
@@ -47,6 +47,7 @@ app.post('/', async (c) => {
         title: body.title,
         summary: body.summary ?? null,
         systemPrompt: body.system_prompt ?? null,
+        visualTheme: body.visual_theme ?? null,
         tags: body.tags ?? null,
         status: body.status ?? 'draft',
       })
@@ -70,6 +71,7 @@ app.get('/', async (c) => {
       title: timelines.title,
       summary: timelines.summary,
       systemPrompt: timelines.systemPrompt,
+      visualTheme: timelines.visualTheme,
       tags: timelines.tags,
       status: timelines.status,
       createdAt: timelines.createdAt,
@@ -92,7 +94,9 @@ app.get('/:id', async (c) => {
   const timeline = await db.query.timelines.findFirst({
     where: and(eq(timelines.id, id), eq(timelines.userId, userId)),
     with: {
-      nodes: true,
+      nodes: {
+        columns: { imageUrl: false },
+      },
       branches: {
         with: { canon: true },
       },
@@ -116,6 +120,7 @@ app.patch('/:id', async (c) => {
   if (body.title !== undefined) updates.title = body.title;
   if (body.summary !== undefined) updates.summary = body.summary;
   if (body.system_prompt !== undefined) updates.systemPrompt = body.system_prompt;
+  if (body.visual_theme !== undefined) updates.visualTheme = body.visual_theme;
   if (body.tags !== undefined) updates.tags = body.tags;
   if (body.status !== undefined) updates.status = body.status;
 
@@ -188,6 +193,27 @@ app.get('/:timelineId/nodes', async (c) => {
     .orderBy(timelineNodes.sortOrder);
 
   return c.json(nodes);
+});
+
+// GET /:timelineId/nodes/images — Get images for all nodes (lazy-load)
+app.get('/:timelineId/nodes/images', async (c) => {
+  const { sub: userId } = c.get('user');
+  const { timelineId } = c.req.param();
+
+  const existing = await verifyTimelineOwnership(timelineId, userId);
+  if (!existing) return c.json({ error: 'Not found' }, 404);
+
+  const rows = await db
+    .select({ id: timelineNodes.id, imageUrl: timelineNodes.imageUrl })
+    .from(timelineNodes)
+    .where(
+      and(
+        eq(timelineNodes.timelineId, timelineId),
+        isNotNull(timelineNodes.imageUrl),
+      )
+    );
+
+  return c.json(rows);
 });
 
 // GET /:timelineId/nodes/:nodeId — Get single node
