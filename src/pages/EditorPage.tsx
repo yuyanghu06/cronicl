@@ -35,12 +35,132 @@ export function EditorPage() {
   const timelineIdRef = useRef<string | null>(null);
   const abortRef = useRef(false);
   const generatingRef = useRef(new Set<string>());
+  const pollTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  // --- Job polling helper ---
+
+  const pollJob = useCallback((jobId: string, nodeId: string) => {
+    const POLL_INTERVAL = 3000;
+    const MAX_POLL_TIME = 120_000; // 2 minutes
+    const startTime = Date.now();
+
+    const tick = async () => {
+      if (abortRef.current) {
+        pollTimersRef.current.delete(nodeId);
+        return;
+      }
+
+      try {
+        const res = await api.get<{
+          jobId: string;
+          nodeId: string;
+          status: string;
+          error?: string;
+        }>(`/api/jobs/images/jobs/${jobId}`);
+
+        if (res.status === "completed") {
+          // Fetch image from DB
+          const tid = timelineIdRef.current;
+          if (tid) {
+            try {
+              const images = await api.get<{ id: string; imageUrl: string }[]>(
+                `/api/timelines/${tid}/nodes/images`
+              );
+              const img = images.find((i) => i.id === nodeId);
+              if (img) {
+                setNodes((prev) =>
+                  prev.map((n) =>
+                    n.id === nodeId
+                      ? { ...n, imageUrl: img.imageUrl, status: "draft" as const }
+                      : n
+                  )
+                );
+              }
+            } catch {
+              // Image fetch failed, revert to draft
+              setNodes((prev) =>
+                prev.map((n) =>
+                  n.id === nodeId ? { ...n, status: "draft" as const } : n
+                )
+              );
+            }
+          }
+          generatingRef.current.delete(nodeId);
+          pollTimersRef.current.delete(nodeId);
+          return;
+        }
+
+        if (res.status === "failed") {
+          console.error(`[Image] Job ${jobId} failed:`, res.error);
+          setNodes((prev) =>
+            prev.map((n) =>
+              n.id === nodeId ? { ...n, status: "draft" as const } : n
+            )
+          );
+          generatingRef.current.delete(nodeId);
+          pollTimersRef.current.delete(nodeId);
+          return;
+        }
+
+        // Still in progress — check timeout
+        if (Date.now() - startTime > MAX_POLL_TIME) {
+          console.warn(`[Image] Job ${jobId} timed out after ${MAX_POLL_TIME / 1000}s`);
+          setNodes((prev) =>
+            prev.map((n) =>
+              n.id === nodeId ? { ...n, status: "draft" as const } : n
+            )
+          );
+          generatingRef.current.delete(nodeId);
+          pollTimersRef.current.delete(nodeId);
+          return;
+        }
+
+        // Schedule next poll
+        const timer = setTimeout(tick, POLL_INTERVAL);
+        pollTimersRef.current.set(nodeId, timer);
+      } catch {
+        // Network error — retry polling
+        if (Date.now() - startTime < MAX_POLL_TIME) {
+          const timer = setTimeout(tick, POLL_INTERVAL);
+          pollTimersRef.current.set(nodeId, timer);
+        } else {
+          setNodes((prev) =>
+            prev.map((n) =>
+              n.id === nodeId ? { ...n, status: "draft" as const } : n
+            )
+          );
+          generatingRef.current.delete(nodeId);
+          pollTimersRef.current.delete(nodeId);
+        }
+      }
+    };
+
+    // Start first poll after interval
+    const timer = setTimeout(tick, POLL_INTERVAL);
+    pollTimersRef.current.set(nodeId, timer);
+  }, []);
+
+  // Clean up poll timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const timer of pollTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      pollTimersRef.current.clear();
+    };
+  }, []);
 
   // --- Image generation ---
 
   const generateImageForNode = useCallback(async (nodeId: string, context?: string) => {
     if (generatingRef.current.has(nodeId)) return;
     generatingRef.current.add(nodeId);
+
+    const tid = timelineIdRef.current;
+    if (!tid) {
+      generatingRef.current.delete(nodeId);
+      return;
+    }
 
     // Read current node from state
     let prompt = "";
@@ -57,54 +177,71 @@ export function EditorPage() {
     if (!prompt) prompt = "A cinematic storyboard frame";
     if (context) prompt = `PRECEDING SCENE CONTEXT:\n${context}\n\nCURRENT SCENE:\n${prompt}`;
 
-    const MAX_RETRIES = 2;
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const res = await api.post<{ image: string; mimeType: string }>(
-          "/api/generate/image",
-          { prompt, timelineId: timelineIdRef.current ?? undefined }
-        );
-        if (abortRef.current) return;
+    try {
+      const res = await api.post<{
+        jobId?: string;
+        nodeId: string;
+        status: string;
+      }>("/api/jobs/images/generate", {
+        nodeId,
+        timelineId: tid,
+        prompt,
+      });
 
-        const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
-        if (!ALLOWED_IMAGE_TYPES.includes(res.mimeType)) continue;
+      if (abortRef.current) return;
 
-        const dataUrl = `data:${res.mimeType};base64,${res.image}`;
-
-        setNodes((prev) =>
-          prev.map((n) =>
-            n.id === nodeId
-              ? { ...n, imageUrl: dataUrl, status: "draft" as const }
-              : n
-          )
-        );
-
-        // Persist to backend
-        const tid = timelineIdRef.current;
-        if (tid) {
-          api
-            .patch(`/api/timelines/${tid}/nodes/${nodeId}`, {
-              image_url: dataUrl,
-            })
-            .catch((err) => console.error(`[Image] Failed to persist image for node ${nodeId}:`, err));
+      if (res.status === "completed" || res.status === "already_exists") {
+        // Sync fallback or already exists — fetch image from DB
+        try {
+          const images = await api.get<{ id: string; imageUrl: string }[]>(
+            `/api/timelines/${tid}/nodes/images`
+          );
+          const img = images.find((i) => i.id === nodeId);
+          if (img) {
+            setNodes((prev) =>
+              prev.map((n) =>
+                n.id === nodeId
+                  ? { ...n, imageUrl: img.imageUrl, status: "draft" as const }
+                  : n
+              )
+            );
+          } else {
+            setNodes((prev) =>
+              prev.map((n) =>
+                n.id === nodeId ? { ...n, status: "draft" as const } : n
+              )
+            );
+          }
+        } catch {
+          setNodes((prev) =>
+            prev.map((n) =>
+              n.id === nodeId ? { ...n, status: "draft" as const } : n
+            )
+          );
         }
-        break; // success — exit retry loop
-      } catch {
-        if (abortRef.current) return;
-        if (attempt < MAX_RETRIES) {
-          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
-          continue;
-        }
-        // All retries exhausted — revert to draft so FRAME_PENDING shows again
+        generatingRef.current.delete(nodeId);
+      } else if (res.status === "queued" && res.jobId) {
+        // Start polling
+        pollJob(res.jobId, nodeId);
+      } else {
+        // Unexpected status
         setNodes((prev) =>
           prev.map((n) =>
             n.id === nodeId ? { ...n, status: "draft" as const } : n
           )
         );
+        generatingRef.current.delete(nodeId);
       }
-    } // end retry loop
-    generatingRef.current.delete(nodeId);
-  }, []);
+    } catch {
+      if (abortRef.current) return;
+      setNodes((prev) =>
+        prev.map((n) =>
+          n.id === nodeId ? { ...n, status: "draft" as const } : n
+        )
+      );
+      generatingRef.current.delete(nodeId);
+    }
+  }, [pollJob]);
 
   // --- Load timeline data ---
 
@@ -155,17 +292,14 @@ export function EditorPage() {
         }
 
         // 3. Auto-generate images for nodes that still don't have one
-        // Re-read from state via a ref-friendly approach
+        // Submit each missing node individually — queue rate limiter handles pacing
         setNodes((prev) => {
           const missing = prev.filter((n) => !n.imageUrl);
           if (missing.length > 0 && !cancelled && !abortRef.current) {
-            (async () => {
-              for (const node of missing) {
-                if (cancelled || abortRef.current) break;
-                await generateImageForNode(node.id);
-                await new Promise((r) => setTimeout(r, 1500));
-              }
-            })();
+            for (const node of missing) {
+              if (cancelled || abortRef.current) break;
+              generateImageForNode(node.id);
+            }
           }
           return prev;
         });
