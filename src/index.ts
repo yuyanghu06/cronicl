@@ -13,11 +13,11 @@ import { env } from './lib/env';
 
 const app = new Hono();
 
-// Global middleware
+// Global middleware — CORS must run first so error responses include CORS headers
+app.use('*', corsMiddleware);
 app.use('*', logger());
 app.use('*', secureHeaders());
-app.use('*', bodyLimit({ maxSize: 100 * 1024 })); // 100 KB
-app.use('*', corsMiddleware);
+app.use('*', bodyLimit({ maxSize: 5 * 1024 * 1024 })); // 5 MB (routes like /ai enforce tighter limits)
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok' }));

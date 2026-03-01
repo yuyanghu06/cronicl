@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { bodyLimit } from 'hono/body-limit';
 import { authMiddleware } from '../middleware/auth';
 import { db } from '../db/client';
 import {
@@ -211,8 +210,7 @@ app.get('/:timelineId/nodes/:nodeId', async (c) => {
 });
 
 // PATCH /:timelineId/nodes/:nodeId — Update node
-// Raised limit to 5 MB to accommodate base64 image_url data URLs
-app.patch('/:timelineId/nodes/:nodeId', bodyLimit({ maxSize: 5 * 1024 * 1024 }), async (c) => {
+app.patch('/:timelineId/nodes/:nodeId', async (c) => {
   const { sub: userId } = c.get('user');
   const { timelineId, nodeId } = c.req.param();
 
