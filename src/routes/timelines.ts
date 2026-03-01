@@ -7,7 +7,7 @@ import {
   branches,
   branchCanon,
 } from '../db/schema';
-import { eq, and, sql, isNotNull } from 'drizzle-orm';
+import { eq, and, sql, isNotNull, desc } from 'drizzle-orm';
 import { getAncestorPath } from '../services/context';
 
 const app = new Hono();
@@ -81,7 +81,7 @@ app.get('/', async (c) => {
     })
     .from(timelines)
     .where(eq(timelines.userId, userId))
-    .orderBy(timelines.updatedAt);
+    .orderBy(desc(timelines.updatedAt));
 
   return c.json(rows);
 });
