@@ -49,54 +49,64 @@ export async function generateImage(req: GenerateImageRequest): Promise<Generate
 
   const model = req.model ?? 'gemini-2.5-flash-image';
   const endpoint = `generateContent (image)`;
-  
-  logRequest(endpoint, model, req.prompt);
+  const MAX_RETRIES = 2;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: req.prompt }] }],
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],
-        },
-      }),
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    logRequest(endpoint, model, req.prompt);
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: req.prompt }] }],
+          generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE'],
+          },
+        }),
+      }
+    );
+
+    const responseText = await response.text();
+    logResponse(endpoint, response.status, responseText);
+
+    if (!response.ok) {
+      logError(endpoint, responseText);
+      throw new Error(`Image generation failed: ${responseText}`);
     }
-  );
 
-  const responseText = await response.text();
-  logResponse(endpoint, response.status, responseText);
+    const data = JSON.parse(responseText);
+    const parts = data.candidates?.[0]?.content?.parts ?? [];
 
-  if (!response.ok) {
-    logError(endpoint, responseText);
-    throw new Error(`Image generation failed: ${responseText}`);
-  }
+    let image = '';
+    let mimeType = 'image/png';
+    let text: string | undefined;
 
-  const data = JSON.parse(responseText);
-  const parts = data.candidates?.[0]?.content?.parts ?? [];
+    for (const part of parts) {
+      if (part.inlineData) {
+        image = part.inlineData.data;
+        mimeType = part.inlineData.mimeType ?? 'image/png';
+      } else if (part.text) {
+        text = part.text;
+      }
+    }
 
-  let image = '';
-  let mimeType = 'image/png';
-  let text: string | undefined;
+    if (image) {
+      console.log(`[Gemini API] Image generated successfully, mimeType: ${mimeType}`);
+      return { image, mimeType, text, model };
+    }
 
-  for (const part of parts) {
-    if (part.inlineData) {
-      image = part.inlineData.data;
-      mimeType = part.inlineData.mimeType ?? 'image/png';
-    } else if (part.text) {
-      text = part.text;
+    // Model returned text but no image — retry after a short delay
+    if (attempt < MAX_RETRIES) {
+      const delay = 1000 * (attempt + 1);
+      console.warn(`[Gemini API] No image in response (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${delay}ms...`);
+      await new Promise((r) => setTimeout(r, delay));
     }
   }
 
-  if (!image) {
-    logError(endpoint, 'No image returned from model');
-    throw new Error('No image returned from model');
-  }
-
-  console.log(`[Gemini API] Image generated successfully, mimeType: ${mimeType}`);
-  return { image, mimeType, text, model };
+  logError(endpoint, 'No image returned from model after retries');
+  throw new Error('No image returned from model');
 }
 
 // ---------- Structured JSON Generation ----------
