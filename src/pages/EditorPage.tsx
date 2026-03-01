@@ -47,41 +47,50 @@ export function EditorPage() {
 
     if (!prompt) prompt = "A cinematic storyboard frame";
 
-    try {
-      const res = await api.post<{ image: string; mimeType: string }>(
-        "/api/generate/image",
-        { prompt }
-      );
-      if (abortRef.current) return;
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await api.post<{ image: string; mimeType: string }>(
+          "/api/generate/image",
+          { prompt }
+        );
+        if (abortRef.current) return;
 
-      const dataUrl = `data:${res.mimeType};base64,${res.image}`;
+        const dataUrl = `data:${res.mimeType};base64,${res.image}`;
 
-      setNodes((prev) =>
-        prev.map((n) =>
-          n.id === nodeId
-            ? { ...n, imageUrl: dataUrl, status: "draft" as const }
-            : n
-        )
-      );
+        setNodes((prev) =>
+          prev.map((n) =>
+            n.id === nodeId
+              ? { ...n, imageUrl: dataUrl, status: "draft" as const }
+              : n
+          )
+        );
 
-      // Persist to backend
-      const tid = timelineIdRef.current;
-      if (tid) {
-        api
-          .patch(`/api/timelines/${tid}/nodes/${nodeId}`, { image_url: dataUrl })
-          .catch(() => {});
+        // Persist to backend
+        const tid = timelineIdRef.current;
+        if (tid) {
+          api
+            .patch(`/api/timelines/${tid}/nodes/${nodeId}`, {
+              image_url: dataUrl,
+            })
+            .catch(() => {});
+        }
+        break; // success — exit retry loop
+      } catch {
+        if (abortRef.current) return;
+        if (attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
+        }
+        // All retries exhausted — revert to draft so FRAME_PENDING shows again
+        setNodes((prev) =>
+          prev.map((n) =>
+            n.id === nodeId ? { ...n, status: "draft" as const } : n
+          )
+        );
       }
-    } catch {
-      if (abortRef.current) return;
-      // Revert to draft so FRAME_PENDING shows again
-      setNodes((prev) =>
-        prev.map((n) =>
-          n.id === nodeId ? { ...n, status: "draft" as const } : n
-        )
-      );
-    } finally {
-      generatingRef.current.delete(nodeId);
-    }
+    } // end retry loop
+    generatingRef.current.delete(nodeId);
   }, []);
 
   // --- Load timeline data ---
