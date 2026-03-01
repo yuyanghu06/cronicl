@@ -32,32 +32,22 @@ export function TimelineNode({ node, isSelected, onClick }: TimelineNodeProps) {
         status={node.status === "generating" ? "generating" : "pending"}
       />
 
-      {/* Node content */}
-      <div className="p-3">
-        {/* Label */}
+      {/* Caption + metadata */}
+      <div className="px-2.5 py-1.5">
         <DotMatrixText
           as="div"
-          className="text-xs text-fg-bright mb-2 tracking-[0.15em] line-clamp-2"
+          className="text-[11px] text-fg-bright tracking-[0.15em] truncate"
         >
           {node.label}
         </DotMatrixText>
-
-        {/* Divider + metadata */}
-        <div className="h-px bg-border-subtle mb-2" />
-        <div className="flex items-center gap-2">
-          <SyntMonoText className="text-[10px]">{node.type}</SyntMonoText>
-          <SyntMonoText className="text-[10px] text-fg-muted">//</SyntMonoText>
-          <SyntMonoText className="text-[10px]">
-            {node.metadata.wordCount}w
-          </SyntMonoText>
-          <SyntMonoText className="text-[10px] text-fg-muted">//</SyntMonoText>
-          <SyntMonoText className="text-[10px]">{node.status}</SyntMonoText>
-          {node.status === "generating" && (
-            <Badge variant="generating">GEN</Badge>
-          )}
-          {node.type === "branch" && (
-            <Badge variant="active">BRANCH</Badge>
-          )}
+        <div className="flex items-center gap-1.5 mt-1">
+          <SyntMonoText className="text-[9px]">{node.type}</SyntMonoText>
+          <SyntMonoText className="text-[9px] text-fg-muted">//</SyntMonoText>
+          <SyntMonoText className="text-[9px]">{node.metadata.wordCount}w</SyntMonoText>
+          <SyntMonoText className="text-[9px] text-fg-muted">//</SyntMonoText>
+          <SyntMonoText className="text-[9px]">{node.status}</SyntMonoText>
+          {node.status === "generating" && <Badge variant="generating">GEN</Badge>}
+          {node.type === "branch" && <Badge variant="active">BRANCH</Badge>}
         </div>
       </div>
     </div>
