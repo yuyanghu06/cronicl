@@ -11,6 +11,7 @@ interface TimelineCanvasProps {
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onGenerateImage?: (nodeId: string) => void;
+  onAddNode: () => void;
 }
 
 export function TimelineCanvas({
@@ -18,6 +19,7 @@ export function TimelineCanvas({
   selectedNodeId,
   onSelectNode,
   onGenerateImage,
+  onAddNode,
 }: TimelineCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: -20, y: -60 });
@@ -154,6 +156,7 @@ export function TimelineCanvas({
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onFitView={handleFitView}
+        onAddNode={onAddNode}
       />
     </div>
   );

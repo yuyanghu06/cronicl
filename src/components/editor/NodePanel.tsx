@@ -11,11 +11,12 @@ type Tab = "EDIT" | "GENERATE";
 interface NodePanelProps {
   node: TimelineNode;
   onSave: (nodeId: string, updates: { label: string; plotSummary: string }) => void | Promise<void>;
+  onDelete: (nodeId: string) => void;
   onGenerateBranch: (fromNodeId: string, description: string) => void | Promise<void>;
   onPreviewImage?: () => void;
 }
 
-export function NodePanel({ node, onSave, onGenerateBranch, onPreviewImage }: NodePanelProps) {
+export function NodePanel({ node, onSave, onDelete, onGenerateBranch, onPreviewImage }: NodePanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("EDIT");
 
   // Reset to EDIT tab on node change
@@ -88,9 +89,7 @@ export function NodePanel({ node, onSave, onGenerateBranch, onPreviewImage }: No
           <NodeEditTab
             node={node}
             onSave={onSave}
-            onDiscard={() => {
-              /* reset handled by NodeEditTab useEffect */
-            }}
+            onDelete={() => onDelete(node.id)}
           />
         ) : (
           <NodeBranchTab

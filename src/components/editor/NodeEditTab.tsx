@@ -6,17 +6,19 @@ import type { TimelineNode } from "@/types/node";
 interface NodeEditTabProps {
   node: TimelineNode;
   onSave: (nodeId: string, updates: { label: string; plotSummary: string }) => void | Promise<void>;
-  onDiscard: () => void;
+  onDelete: () => void;
 }
 
-export function NodeEditTab({ node, onSave, onDiscard }: NodeEditTabProps) {
+export function NodeEditTab({ node, onSave, onDelete }: NodeEditTabProps) {
   const [label, setLabel] = useState(node.label);
   const [plotSummary, setPlotSummary] = useState(node.plotSummary);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Reset when node changes
   useEffect(() => {
     setLabel(node.label);
     setPlotSummary(node.plotSummary);
+    setConfirmDelete(false);
   }, [node.id, node.label, node.plotSummary]);
 
   return (
@@ -107,8 +109,20 @@ export function NodeEditTab({ node, onSave, onDiscard }: NodeEditTabProps) {
         >
           SAVE CHANGES
         </Button>
-        <Button variant="ghost" size="sm" onClick={onDiscard}>
-          DISCARD
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-red hover:text-red"
+          onClick={() => {
+            if (confirmDelete) {
+              onDelete();
+            } else {
+              setConfirmDelete(true);
+            }
+          }}
+          onBlur={() => setConfirmDelete(false)}
+        >
+          {confirmDelete ? "CONFIRM?" : "DELETE"}
         </Button>
       </div>
     </div>

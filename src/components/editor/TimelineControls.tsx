@@ -1,12 +1,13 @@
 import { Button } from "@/components/ui/Button";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
-import { Plus, Minus, Maximize2, GitBranch } from "lucide-react";
+import { Plus, Minus, Maximize2, GitBranch, CirclePlus } from "lucide-react";
 
 interface TimelineControlsProps {
   zoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFitView: () => void;
+  onAddNode: () => void;
 }
 
 export function TimelineControls({
@@ -14,6 +15,7 @@ export function TimelineControls({
   onZoomIn,
   onZoomOut,
   onFitView,
+  onAddNode,
 }: TimelineControlsProps) {
   return (
     <div className="absolute bottom-4 left-4 z-20 flex items-center gap-1 bg-bg-base/80 backdrop-blur-sm border border-border-subtle rounded-2xl p-2">
@@ -33,6 +35,10 @@ export function TimelineControls({
       <div className="w-px h-4 bg-border-subtle mx-1" />
       <Button variant="ghost" size="sm" className="px-2 py-1 text-red hover:text-red">
         <GitBranch size={14} strokeWidth={1.5} />
+      </Button>
+      <div className="w-px h-4 bg-border-subtle mx-1" />
+      <Button variant="ghost" size="sm" onClick={onAddNode} className="px-2 py-1">
+        <CirclePlus size={14} strokeWidth={1.5} />
       </Button>
     </div>
   );

@@ -196,6 +196,70 @@ export function EditorPage() {
     generateImageForNode(nodeId);
   };
 
+  const onDeleteNode = async (nodeId: string) => {
+    const tid = timelineIdRef.current;
+    if (tid) {
+      try {
+        await api.delete(`/api/timelines/${tid}/nodes/${nodeId}`);
+      } catch (err) {
+        console.error(`[Delete] Failed to delete node ${nodeId}:`, err);
+        return;
+      }
+    }
+    setNodes((prev) => prev.filter((n) => n.id !== nodeId));
+    setSelectedNodeId(null);
+  };
+
+  const onAddNode = async () => {
+    const tid = timelineIdRef.current;
+    if (!tid) return;
+
+    // Position: 480px right of the rightmost node, same y; or (0,0) if empty
+    let x = 0;
+    let y = 0;
+    if (nodes.length > 0) {
+      const rightmost = nodes.reduce((a, b) =>
+        b.position.x > a.position.x ? b : a
+      );
+      x = rightmost.position.x + 480;
+      y = rightmost.position.y;
+    }
+
+    let newNodeId = `node_${Date.now()}`;
+    try {
+      const created = await api.post<BackendNode>(
+        `/api/timelines/${tid}/nodes`,
+        mapNodeToBackendCreate({
+          label: "Untitled",
+          plotSummary: "",
+          position: { x, y },
+          status: "draft",
+        })
+      );
+      newNodeId = created.id;
+    } catch {
+      // Use client-generated ID as fallback
+    }
+
+    const newNode: TimelineNode = {
+      id: newNodeId,
+      label: "Untitled",
+      plotSummary: "",
+      metadata: {
+        createdAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+        wordCount: 0,
+      },
+      position: { x, y },
+      connections: [],
+      type: "scene",
+      status: "draft",
+    };
+
+    setNodes((prev) => [...prev, newNode]);
+    setSelectedNodeId(newNodeId);
+    generateImageForNode(newNodeId);
+  };
+
   const onGenerateBranch = async (fromNodeId: string, description: string) => {
     const fromNode = nodes.find((n) => n.id === fromNodeId);
     if (!fromNode) return;
@@ -307,6 +371,7 @@ export function EditorPage() {
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
             onGenerateImage={generateImageForNode}
+            onAddNode={onAddNode}
           />
         )}
 
@@ -319,6 +384,7 @@ export function EditorPage() {
             <NodePanel
               node={selectedNode}
               onSave={onSaveNode}
+              onDelete={onDeleteNode}
               onGenerateBranch={onGenerateBranch}
               onPreviewImage={() => setLightboxUrl(selectedNode.imageUrl ?? null)}
             />
