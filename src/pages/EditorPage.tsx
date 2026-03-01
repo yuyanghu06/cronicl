@@ -7,7 +7,7 @@ import { NodePanel } from "@/components/editor/NodePanel";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { CourierText } from "@/components/ui/CourierText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
-import { GitBranch, Save, Users } from "lucide-react";
+import { GitBranch, ImagePlus, Save, Users } from "lucide-react";
 import type { TimelineNode } from "@/types/node.ts";
 import type { SuggestionState, GhostNode } from "@/types/suggestion.ts";
 import { api } from "@/lib/api.ts";
@@ -252,6 +252,106 @@ export function EditorPage() {
     }
   }, [pollJob]);
 
+  // --- Batch image generation ---
+
+  const generateAllImages = useCallback(async () => {
+    const tid = timelineIdRef.current;
+    if (!tid) return;
+
+    // Find nodes without images that aren't already generating
+    let missingNodeIds: string[] = [];
+    setNodes((prev) => {
+      missingNodeIds = prev
+        .filter((n) => !n.imageUrl && !generatingRef.current.has(n.id))
+        .map((n) => n.id);
+
+      // Mark them all as generating
+      return prev.map((n) =>
+        missingNodeIds.includes(n.id) ? { ...n, status: "generating" as const } : n
+      );
+    });
+
+    if (missingNodeIds.length === 0) return;
+
+    // Track all as generating
+    for (const id of missingNodeIds) generatingRef.current.add(id);
+
+    try {
+      const res = await api.post<{
+        jobs: { nodeId: string; jobId?: string; status: string; error?: string }[];
+      }>("/api/jobs/images/generate-batch", {
+        timelineId: tid,
+        nodeIds: missingNodeIds,
+      });
+
+      if (abortRef.current) return;
+
+      // Handle completed/already_exists (sync fallback) — fetch all images
+      const doneIds = res.jobs
+        .filter((j) => j.status === "completed" || j.status === "already_exists")
+        .map((j) => j.nodeId);
+      const failedIds = res.jobs
+        .filter((j) => j.status === "failed" || j.status === "skipped")
+        .map((j) => j.nodeId);
+      const queuedJobs = res.jobs.filter((j) => j.status === "queued" && j.jobId);
+
+      // Reset failed/skipped nodes
+      if (failedIds.length > 0) {
+        const failedSet = new Set(failedIds);
+        setNodes((prev) =>
+          prev.map((n) =>
+            failedSet.has(n.id) ? { ...n, status: "draft" as const } : n
+          )
+        );
+        for (const id of failedIds) generatingRef.current.delete(id);
+      }
+
+      // Fetch images for sync-completed nodes
+      if (doneIds.length > 0) {
+        try {
+          const images = await api.get<{ id: string; imageUrl: string }[]>(
+            `/api/timelines/${tid}/nodes/images`
+          );
+          const imageMap = new Map(images.map((i) => [i.id, i.imageUrl]));
+          const doneSet = new Set(doneIds);
+          setNodes((prev) =>
+            prev.map((n) => {
+              if (!doneSet.has(n.id)) return n;
+              const url = imageMap.get(n.id);
+              return url
+                ? { ...n, imageUrl: url, status: "draft" as const }
+                : { ...n, status: "draft" as const };
+            })
+          );
+        } catch {
+          setNodes((prev) =>
+            prev.map((n) =>
+              doneIds.includes(n.id) ? { ...n, status: "draft" as const } : n
+            )
+          );
+        }
+        for (const id of doneIds) generatingRef.current.delete(id);
+      }
+
+      // Poll queued jobs concurrently
+      if (queuedJobs.length > 0) {
+        await Promise.allSettled(
+          queuedJobs.map((j) => pollJob(j.jobId!, j.nodeId))
+        );
+      }
+    } catch {
+      if (abortRef.current) return;
+      // Reset all to draft on total failure
+      const failedSet = new Set(missingNodeIds);
+      setNodes((prev) =>
+        prev.map((n) =>
+          failedSet.has(n.id) ? { ...n, status: "draft" as const } : n
+        )
+      );
+      for (const id of missingNodeIds) generatingRef.current.delete(id);
+    }
+  }, [pollJob]);
+
   // --- Load timeline data ---
 
   useEffect(() => {
@@ -308,20 +408,10 @@ export function EditorPage() {
           // Images failed to load — nodes still render without them
         }
 
-        // 3. Auto-generate images for nodes that still don't have one
-        // Generate sequentially: node 1 finishes → node 2 starts → etc.
-        setNodes((prev) => {
-          const missing = prev.filter((n) => !n.imageUrl);
-          if (missing.length > 0 && !cancelled && !abortRef.current) {
-            (async () => {
-              for (const node of missing) {
-                if (cancelled || abortRef.current) break;
-                await generateImageForNode(node.id);
-              }
-            })();
-          }
-          return prev;
-        });
+        // 3. Auto-generate images for nodes that still don't have one (concurrent)
+        if (!cancelled && !abortRef.current) {
+          generateAllImages();
+        }
       } catch {
         if (cancelled) return;
         setProjectName("Unknown Project");
@@ -334,7 +424,7 @@ export function EditorPage() {
       cancelled = true;
       abortRef.current = true;
     };
-  }, [projectId, generateImageForNode]);
+  }, [projectId, generateImageForNode, generateAllImages]);
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedNodeId) ?? null,
@@ -682,6 +772,9 @@ export function EditorPage() {
     }
   }, [selectedNodeId, suggestions.sourceNodeId, suggestions.status]);
 
+  const isAnyGenerating = nodes.some((n) => n.status === "generating");
+  const hasNodesWithoutImages = nodes.some((n) => !n.imageUrl && n.status !== "generating");
+
   return (
     <AppShell
       topBarCenter={
@@ -691,6 +784,26 @@ export function EditorPage() {
       }
       topBarRight={
         <div className="flex items-center gap-3">
+          <button
+            onClick={generateAllImages}
+            disabled={isAnyGenerating || !hasNodesWithoutImages}
+            className={`transition-colors cursor-pointer bg-transparent border-none ${
+              isAnyGenerating
+                ? "text-accent animate-pulse"
+                : hasNodesWithoutImages
+                  ? "text-fg-muted hover:text-fg-bright"
+                  : "text-fg-muted/40 cursor-not-allowed"
+            }`}
+            title={
+              isAnyGenerating
+                ? "Generating images..."
+                : hasNodesWithoutImages
+                  ? "Generate all missing images"
+                  : "All nodes have images"
+            }
+          >
+            <ImagePlus size={16} strokeWidth={1.5} />
+          </button>
           <button
             onClick={() => setCharacterBibleOpen((v) => !v)}
             className={`transition-colors cursor-pointer bg-transparent border-none ${
