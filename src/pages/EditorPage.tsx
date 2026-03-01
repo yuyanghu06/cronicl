@@ -75,7 +75,7 @@ export function EditorPage() {
             .patch(`/api/timelines/${tid}/nodes/${nodeId}`, {
               image_url: dataUrl,
             })
-            .catch(() => {});
+            .catch((err) => console.error(`[Image] Failed to persist image for node ${nodeId}:`, err));
         }
         break; // success — exit retry loop
       } catch {
