@@ -14,6 +14,7 @@ import { env } from './lib/env';
 import { startImageWorker, stopImageWorker } from './services/imageWorker';
 import { closeQueue } from './lib/queue';
 import { cleanupSessions } from './services/token';
+import { cleanupOrphanedImages } from './lib/r2';
 
 const app = new Hono();
 
@@ -66,6 +67,20 @@ const sessionGcInterval = setInterval(() => {
     .catch((err) => console.error('[GC] Session cleanup failed:', err));
 }, 6 * 60 * 60 * 1000);
 sessionGcInterval.unref();
+
+// R2 orphaned image cleanup — delayed start, then every 6 hours
+setTimeout(() => {
+  cleanupOrphanedImages()
+    .then((r) => r.deleted > 0 && console.log(`[GC] R2 cleanup: ${r.deleted}/${r.scanned} orphaned images deleted`))
+    .catch((err) => console.error('[GC] R2 cleanup failed:', err));
+
+  const r2GcInterval = setInterval(() => {
+    cleanupOrphanedImages()
+      .then((r) => r.deleted > 0 && console.log(`[GC] R2 cleanup: ${r.deleted}/${r.scanned} orphaned images deleted`))
+      .catch((err) => console.error('[GC] R2 cleanup failed:', err));
+  }, 6 * 60 * 60 * 1000);
+  r2GcInterval.unref();
+}, 30_000);
 
 // Graceful shutdown
 async function shutdown() {
