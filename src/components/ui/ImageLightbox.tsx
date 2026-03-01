@@ -1,13 +1,15 @@
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
+import { sanitizeImageUrl } from "@/lib/sanitize";
 
 interface ImageLightboxProps {
   imageUrl: string | null;
   onClose: () => void;
 }
 
-export function ImageLightbox({ imageUrl, onClose }: ImageLightboxProps) {
+export function ImageLightbox({ imageUrl: rawImageUrl, onClose }: ImageLightboxProps) {
+  const imageUrl = sanitizeImageUrl(rawImageUrl) ?? null;
   useEffect(() => {
     if (!imageUrl) return;
     const handleKey = (e: KeyboardEvent) => {

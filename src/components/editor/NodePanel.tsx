@@ -5,6 +5,7 @@ import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { NodeEditTab } from "./NodeEditTab";
 import { NodeBranchTab } from "./NodeBranchTab";
 import { NodeSuggestTab } from "./NodeSuggestTab";
+import { sanitizeImageUrl } from "@/lib/sanitize";
 import type { TimelineNode } from "@/types/node";
 import type { SuggestionState } from "@/types/suggestion";
 
@@ -49,14 +50,14 @@ export function NodePanel({
   return (
     <div className="flex flex-col h-full">
       {/* Image preview */}
-      {node.imageUrl && (
+      {sanitizeImageUrl(node.imageUrl) && (
         <button
           type="button"
           onClick={onPreviewImage}
           className="w-full mb-4 rounded-lg overflow-hidden cursor-pointer bg-transparent border-none p-0 group"
         >
           <img
-            src={node.imageUrl}
+            src={sanitizeImageUrl(node.imageUrl)}
             alt=""
             className="w-full h-[180px] object-cover rounded-lg transition-[filter] duration-200 group-hover:brightness-110"
           />

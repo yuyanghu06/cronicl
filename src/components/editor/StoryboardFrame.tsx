@@ -1,4 +1,5 @@
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
+import { sanitizeImageUrl } from "@/lib/sanitize";
 
 interface StoryboardFrameProps {
   status: "pending" | "generating";
@@ -6,8 +7,9 @@ interface StoryboardFrameProps {
   onGenerate?: () => void;
 }
 
-export function StoryboardFrame({ status, imageUrl, onGenerate }: StoryboardFrameProps) {
+export function StoryboardFrame({ status, imageUrl: rawImageUrl, onGenerate }: StoryboardFrameProps) {
   const isGenerating = status === "generating";
+  const imageUrl = sanitizeImageUrl(rawImageUrl);
 
   const handleGenerate = (e: React.MouseEvent) => {
     e.stopPropagation();

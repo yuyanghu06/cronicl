@@ -180,7 +180,7 @@ export function AIChatRoom({
             if (visualThemeResult.status === "fulfilled") {
               api.patch(`/api/timelines/${timeline.id}`, {
                 visual_theme: visualThemeResult.value.visual_theme,
-              }).catch(() => {});
+              }).catch((err: unknown) => console.warn('[AIChatRoom] Failed to persist visual theme:', err));
             }
 
             // 4. Persist nodes — either AI-generated or fallback
