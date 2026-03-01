@@ -1,0 +1,1 @@
+ALTER TABLE "timelines" ADD COLUMN "vision_blurb" text;

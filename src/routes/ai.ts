@@ -383,6 +383,45 @@ ${story_context}`;
   }
 });
 
+// ---------- POST /generate-vision-blurb ----------
+
+ai.post('/generate-vision-blurb', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { sub: userId } = c.get('user');
+
+    const story_context = requireString(body, 'story_context', MAX_SYSTEM_PROMPT_LENGTH);
+
+    const prompt = `You are a creative director summarizing the overarching vision for a cinematic narrative project. Based on the creative brief below, write a short but detailed blurb (2-4 sentences) that captures:
+
+- The core premise and central conflict
+- The world/setting in broad strokes
+- The emotional tone and thematic undercurrent
+- What makes this story visually and narratively distinctive
+
+This blurb will be used to keep every generated storyboard frame anchored to the project's overall vision. Be vivid and specific — not generic.
+
+Creative brief:
+${story_context}`;
+
+    const result = await generateText({
+      prompt,
+      model: 'gemini-2.5-flash',
+    });
+
+    recordUsage(userId, '/ai/generate-vision-blurb').catch((err) =>
+      console.error('Failed to record usage:', err)
+    );
+
+    return c.json({
+      vision_blurb: result.text,
+      model: result.model,
+    });
+  } catch (error) {
+    return handleError(c, error);
+  }
+});
+
 // ---------- POST /suggest-from-timeline ----------
 
 ai.post('/suggest-from-timeline', async (c) => {

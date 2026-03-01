@@ -70,21 +70,25 @@ proxy.post('/generate/image', async (c) => {
     if (body.timelineId) {
       const timeline = await db.query.timelines.findFirst({
         where: eq(timelines.id, body.timelineId),
-        columns: { visualTheme: true, systemPrompt: true },
+        columns: { visualTheme: true, systemPrompt: true, visionBlurb: true },
       });
+      const visionBlock = timeline?.visionBlurb
+        ? `\n\nPROJECT VISION:\n${timeline.visionBlurb}\n`
+        : '';
+
       if (timeline?.visualTheme) {
         prompt = `You are generating a storyboard frame for a cinematic narrative.
-
+${visionBlock}
 VISUAL STYLE GUIDE:
 ${timeline.visualTheme}
 
 SCENE:
 ${prompt}
 
-Generate an image that strictly follows the visual style guide above.`;
+Generate an image that strictly follows the visual style guide and project vision above.`;
       } else if (timeline?.systemPrompt) {
         prompt = `You are generating a storyboard frame for a cinematic narrative.
-
+${visionBlock}
 CREATIVE DIRECTION:
 ${timeline.systemPrompt}
 
@@ -92,6 +96,13 @@ SCENE:
 ${prompt}
 
 Generate a visually striking image that matches the genre, tone, and world described above.`;
+      } else if (timeline?.visionBlurb) {
+        prompt = `You are generating a storyboard frame for a cinematic narrative.
+${visionBlock}
+SCENE:
+${prompt}
+
+Generate an image that captures the project vision described above.`;
       }
     }
 

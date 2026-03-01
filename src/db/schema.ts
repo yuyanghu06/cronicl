@@ -100,6 +100,7 @@ export const timelines = pgTable(
     summary: text('summary'),
     systemPrompt: text('system_prompt'),
     visualTheme: text('visual_theme'),
+    visionBlurb: text('vision_blurb'),
     tags: text('tags').array(),
     status: text('status').default('draft'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),

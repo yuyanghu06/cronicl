@@ -48,6 +48,7 @@ app.post('/', async (c) => {
         summary: body.summary ?? null,
         systemPrompt: body.system_prompt ?? null,
         visualTheme: body.visual_theme ?? null,
+        visionBlurb: body.vision_blurb ?? null,
         tags: body.tags ?? null,
         status: body.status ?? 'draft',
       })
@@ -72,6 +73,7 @@ app.get('/', async (c) => {
       summary: timelines.summary,
       systemPrompt: timelines.systemPrompt,
       visualTheme: timelines.visualTheme,
+      visionBlurb: timelines.visionBlurb,
       tags: timelines.tags,
       status: timelines.status,
       createdAt: timelines.createdAt,
@@ -121,6 +123,7 @@ app.patch('/:id', async (c) => {
   if (body.summary !== undefined) updates.summary = body.summary;
   if (body.system_prompt !== undefined) updates.systemPrompt = body.system_prompt;
   if (body.visual_theme !== undefined) updates.visualTheme = body.visual_theme;
+  if (body.vision_blurb !== undefined) updates.visionBlurb = body.vision_blurb;
   if (body.tags !== undefined) updates.tags = body.tags;
   if (body.status !== undefined) updates.status = body.status;
 
