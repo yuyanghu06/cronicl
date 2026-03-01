@@ -3,7 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { authMiddleware } from '../middleware/auth';
 import { aiRateLimiter } from '../middleware/ratelimit';
 import { quotaMiddleware } from '../middleware/quota';
-import { generateStructuredText } from '../services/ai';
+import { generateStructuredText, generateText } from '../services/ai';
 import { recordUsage } from '../services/usage';
 import {
   buildSuggestionPrompt,
@@ -329,6 +329,48 @@ Return ONLY valid JSON: {"nodes": [{"title": "...", "summary": "..."}, ...]}`;
 
     return c.json({
       nodes: result.data.nodes ?? [],
+      model: result.model,
+    });
+  } catch (error) {
+    return handleError(c, error);
+  }
+});
+
+// ---------- POST /generate-visual-theme ----------
+
+ai.post('/generate-visual-theme', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { sub: userId } = c.get('user');
+
+    const story_context = requireString(body, 'story_context', MAX_SYSTEM_PROMPT_LENGTH);
+
+    const prompt = `You are a visual director for a cinematic storytelling platform. Based on the creative brief below, write a concise visual style guide that will direct all storyboard image generation for this project.
+
+Cover these aspects in natural prose:
+- Art style (e.g., "dark watercolor illustration with ink wash textures", "hyper-realistic digital matte painting")
+- Color palette (name 4-6 dominant colors with their hex codes woven into the description)
+- Lighting (e.g., "low-key chiaroscuro with neon rim lighting")
+- Mood and atmosphere
+- Cinematography and composition (camera angles, framing, depth of field)
+- 2-3 reference aesthetics (films, artists, or visual works that capture the target look)
+
+Be specific and evocative. Write 3-5 sentences total — enough to guide an image model, not a full essay.
+
+Creative brief:
+${story_context}`;
+
+    const result = await generateText({
+      prompt,
+      model: 'gemini-2.5-flash',
+    });
+
+    recordUsage(userId, '/ai/generate-visual-theme').catch((err) =>
+      console.error('Failed to record usage:', err)
+    );
+
+    return c.json({
+      visual_theme: result.text,
       model: result.model,
     });
   } catch (error) {

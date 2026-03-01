@@ -67,9 +67,19 @@ proxy.post('/generate/image', async (c) => {
     if (body.timelineId) {
       const timeline = await db.query.timelines.findFirst({
         where: eq(timelines.id, body.timelineId),
-        columns: { systemPrompt: true },
+        columns: { visualTheme: true, systemPrompt: true },
       });
-      if (timeline?.systemPrompt) {
+      if (timeline?.visualTheme) {
+        prompt = `You are generating a storyboard frame for a cinematic narrative.
+
+VISUAL STYLE GUIDE:
+${timeline.visualTheme}
+
+SCENE:
+${prompt}
+
+Generate an image that strictly follows the visual style guide above.`;
+      } else if (timeline?.systemPrompt) {
         prompt = `You are generating a storyboard frame for a cinematic narrative.
 
 CREATIVE DIRECTION:

@@ -1,0 +1,1 @@
+ALTER TABLE "timelines" ADD COLUMN "visual_theme" text;
