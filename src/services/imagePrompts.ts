@@ -38,6 +38,12 @@ export interface ExtractedSceneData {
   characters: string[];
 }
 
+export interface CharacterIdentity {
+  name: string;
+  appearanceGuide?: string | null;
+  referenceImageUrl?: string | null;
+}
+
 // ---------- Setting Extraction ----------
 
 export function buildSettingExtractionPrompt(
@@ -80,7 +86,8 @@ Ground your answer in the project world above. The setting must be consistent wi
 
 export function buildCharacterExtractionPrompt(
   sceneText: string,
-  storyContext?: StoryContext
+  storyContext?: StoryContext,
+  knownCharacters?: string[]
 ): string {
   const sections: string[] = [];
 
@@ -94,9 +101,23 @@ export function buildCharacterExtractionPrompt(
     sections.push(`PROJECT CONTEXT:\n${storyContext.systemPrompt}`);
   }
 
+  if (knownCharacters && knownCharacters.length > 0) {
+    sections.push(
+      `KNOWN CHARACTERS IN THIS STORY:\n${knownCharacters.map((name) => `- ${name}`).join('\n')}`
+    );
+  }
+
   sections.push(
     `SCENE TEXT:\n${sceneText}`
   );
+
+  const rules = [
+    '- If a known character list is provided above, prefer returning the canonical name from that list when a match is found.',
+    '- Use the exact name as it appears in the text when no known character matches.',
+    '- If a character is referenced only in dialogue or memory (but is physically absent from the scene), exclude them.',
+    '- If the text is ambiguous, lean toward including the character.',
+    '- An empty array is the correct answer when the scene contains only environment, narration, or abstract concepts.',
+  ];
 
   sections.push(
     `INSTRUCTIONS:
@@ -105,10 +126,7 @@ List every character (person, named entity, creature) who is physically present,
 Return JSON: {"characters": ["Name1", "Name2"]}
 
 Rules:
-- Use the exact name as it appears in the text.
-- If a character is referenced only in dialogue or memory (but is physically absent from the scene), exclude them.
-- If the text is ambiguous, lean toward including the character.
-- An empty array is the correct answer when the scene contains only environment, narration, or abstract concepts.`
+${rules.join('\n')}`
   );
 
   return sections.join('\n\n');
@@ -119,7 +137,8 @@ Rules:
 export function buildImageGenerationPrompt(
   sceneText: string,
   storyContext: StoryContext,
-  extracted: ExtractedSceneData
+  extracted: ExtractedSceneData,
+  characterBible?: CharacterIdentity[]
 ): string {
   const sections: string[] = [];
 
@@ -142,6 +161,19 @@ export function buildImageGenerationPrompt(
     );
   }
 
+  // --- CHARACTER IDENTITIES (right after style guide for high attention) ---
+
+  const matchedBible = characterBible?.filter((c) => c.appearanceGuide) ?? [];
+  const matchedNames = new Set(matchedBible.map((c) => c.name.toLowerCase()));
+
+  if (matchedBible.length > 0) {
+    for (const char of matchedBible) {
+      sections.push(
+        `[CHARACTER IDENTITY — ${char.name}]\n${char.appearanceGuide}`
+      );
+    }
+  }
+
   // --- MIDDLE: Scene content (subject + action) ---
 
   sections.push(
@@ -159,9 +191,24 @@ export function buildImageGenerationPrompt(
   // --- Characters (affirmative framing) ---
 
   if (extracted.characters.length > 0) {
-    sections.push(
-      `[CHARACTERS PRESENT — show exactly these people]\n${extracted.characters.join(', ')}. These are the only figures visible in the frame.`
+    // Characters with bible entries are already described above; list any remaining by name
+    const unmatchedCharacters = extracted.characters.filter(
+      (name) => !matchedNames.has(name.toLowerCase())
     );
+
+    if (unmatchedCharacters.length > 0 && matchedBible.length > 0) {
+      sections.push(
+        `[CHARACTERS PRESENT — show exactly these people]\n${extracted.characters.join(', ')}. These are the only figures visible in the frame. Characters with identity blocks above must match their descriptions exactly.`
+      );
+    } else if (matchedBible.length > 0) {
+      sections.push(
+        `[CHARACTERS PRESENT — show exactly these people]\n${extracted.characters.join(', ')}. These are the only figures visible in the frame, with each character matching their identity description exactly.`
+      );
+    } else {
+      sections.push(
+        `[CHARACTERS PRESENT — show exactly these people]\n${extracted.characters.join(', ')}. These are the only figures visible in the frame.`
+      );
+    }
   } else {
     sections.push(
       `[FIGURES — this scene is empty of people]\nThe frame contains only the environment and objects. All human and character figures are absent.`
@@ -176,8 +223,46 @@ export function buildImageGenerationPrompt(
     constraintParts.push('matching the style guide above precisely');
   }
   constraintParts.push('with consistent lighting, color palette, and composition throughout');
+  if (matchedBible.length > 0) {
+    constraintParts.push('with each character matching their identity description exactly');
+  }
 
   sections.push(constraintParts.join(', ') + '.');
+
+  return sections.join('\n\n');
+}
+
+// ---------- Portrait Generation Prompt ----------
+
+export function buildPortraitGenerationPrompt(
+  character: { name: string; appearanceGuide: string },
+  storyContext: StoryContext
+): string {
+  const sections: string[] = [];
+
+  if (storyContext.visualTheme) {
+    sections.push(
+      `[STYLE GUIDE — follow this exactly for every visual decision]\n${storyContext.visualTheme}`
+    );
+  }
+
+  if (storyContext.visionBlurb) {
+    sections.push(
+      `[PROJECT VISION — the world this character belongs to]\n${storyContext.visionBlurb}`
+    );
+  }
+
+  sections.push(
+    `[CHARACTER IDENTITY — ${character.name}]\n${character.appearanceGuide}`
+  );
+
+  sections.push(
+    `[COMPOSITION]\nHead-and-shoulders portrait, centered, neutral expression, studio-quality lighting, plain background that complements the character's color palette.`
+  );
+
+  sections.push(
+    `Generate a single character reference portrait matching the style guide, suitable for use as a casting reference sheet.`
+  );
 
   return sections.join('\n\n');
 }

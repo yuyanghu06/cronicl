@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import { getConnection } from '../lib/queue';
 import { db } from '../db/client';
-import { timelines, timelineNodes } from '../db/schema';
+import { timelines, timelineNodes, characterBible } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { generateImage, generateStructuredText } from './ai';
 import { recordUsage } from './usage';
@@ -11,6 +11,7 @@ import {
   buildImageGenerationPrompt,
   type StoryContext,
 } from './imagePrompts';
+import { matchCharacters } from './characterMatcher';
 
 export interface ImageJobData {
   nodeId: string;
@@ -26,17 +27,28 @@ export async function processImageGeneration(data: ImageJobData): Promise<void> 
 
   const sceneText = rawPrompt;
 
-  // Load story context for grounding
-  const timeline = await db.query.timelines.findFirst({
-    where: eq(timelines.id, timelineId),
-    columns: { visualTheme: true, systemPrompt: true, visionBlurb: true },
-  });
+  // Load story context + character bible in parallel
+  const [timeline, bible] = await Promise.all([
+    db.query.timelines.findFirst({
+      where: eq(timelines.id, timelineId),
+      columns: { visualTheme: true, systemPrompt: true, visionBlurb: true },
+    }),
+    db.query.characterBible.findMany({
+      where: eq(characterBible.timelineId, timelineId),
+    }),
+  ]);
 
   const storyContext: StoryContext = {
     visualTheme: timeline?.visualTheme,
     systemPrompt: timeline?.systemPrompt,
     visionBlurb: timeline?.visionBlurb,
   };
+
+  // Build known character names + aliases for extraction accuracy
+  const knownCharacters = bible.flatMap((entry) => [
+    entry.name,
+    ...(entry.aliases ?? []),
+  ].filter(Boolean));
 
   // Extract setting + characters in parallel (grounded in story context)
   const [settingResult, characterResult] = await Promise.allSettled([
@@ -45,7 +57,11 @@ export async function processImageGeneration(data: ImageJobData): Promise<void> 
       model: 'gemini-2.5-flash-lite',
     }),
     generateStructuredText<{ characters: string[] }>({
-      prompt: buildCharacterExtractionPrompt(sceneText, storyContext),
+      prompt: buildCharacterExtractionPrompt(
+        sceneText,
+        storyContext,
+        knownCharacters.length > 0 ? knownCharacters : undefined
+      ),
       model: 'gemini-2.5-flash-lite',
     }),
   ]);
@@ -59,8 +75,16 @@ export async function processImageGeneration(data: ImageJobData): Promise<void> 
       : [],
   };
 
+  // Match extracted characters against the bible for identity injection
+  const matchedCharacters = matchCharacters(extracted.characters, bible);
+
   // Assemble final image prompt with labeled sections and priority ordering
-  const prompt = buildImageGenerationPrompt(sceneText, storyContext, extracted);
+  const prompt = buildImageGenerationPrompt(
+    sceneText,
+    storyContext,
+    extracted,
+    matchedCharacters.length > 0 ? matchedCharacters : undefined
+  );
 
   const result = await generateImage({ prompt });
 

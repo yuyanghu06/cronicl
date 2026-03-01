@@ -5,7 +5,7 @@ import { quotaMiddleware } from '../middleware/quota';
 import { generateText, generateImage, generateStructuredText, type GenerateTextRequest, type GenerateImageRequest } from '../services/ai';
 import { recordUsage } from '../services/usage';
 import { db } from '../db/client';
-import { timelines } from '../db/schema';
+import { timelines, characterBible } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import {
   buildSettingExtractionPrompt,
@@ -13,6 +13,7 @@ import {
   buildImageGenerationPrompt,
   type StoryContext,
 } from '../services/imagePrompts';
+import { matchCharacters } from '../services/characterMatcher';
 
 const MAX_PROMPT_LENGTH = 10_000;
 
@@ -72,13 +73,19 @@ proxy.post('/generate/image', async (c) => {
     // Preserve original scene text for extraction (before style enrichment)
     const sceneText = prompt;
 
-    // Load story context for grounding
+    // Load story context + character bible for grounding
     let storyContext: StoryContext = {};
+    let bible: import('../db/schema').CharacterBibleEntry[] = [];
     if (body.timelineId) {
-      const timeline = await db.query.timelines.findFirst({
-        where: eq(timelines.id, body.timelineId),
-        columns: { visualTheme: true, systemPrompt: true, visionBlurb: true },
-      });
+      const [timeline, bibleEntries] = await Promise.all([
+        db.query.timelines.findFirst({
+          where: eq(timelines.id, body.timelineId),
+          columns: { visualTheme: true, systemPrompt: true, visionBlurb: true },
+        }),
+        db.query.characterBible.findMany({
+          where: eq(characterBible.timelineId, body.timelineId),
+        }),
+      ]);
       if (timeline) {
         storyContext = {
           visualTheme: timeline.visualTheme,
@@ -86,7 +93,14 @@ proxy.post('/generate/image', async (c) => {
           visionBlurb: timeline.visionBlurb,
         };
       }
+      bible = bibleEntries;
     }
+
+    // Build known character names + aliases for extraction accuracy
+    const knownCharacters = bible.flatMap((entry) => [
+      entry.name,
+      ...(entry.aliases ?? []),
+    ].filter(Boolean));
 
     // Extract setting and characters in parallel (grounded in story context)
     const [settingResult, characterResult] = await Promise.allSettled([
@@ -95,7 +109,11 @@ proxy.post('/generate/image', async (c) => {
         model: 'gemini-2.5-flash-lite',
       }),
       generateStructuredText<{ characters: string[] }>({
-        prompt: buildCharacterExtractionPrompt(sceneText, storyContext),
+        prompt: buildCharacterExtractionPrompt(
+          sceneText,
+          storyContext,
+          knownCharacters.length > 0 ? knownCharacters : undefined
+        ),
         model: 'gemini-2.5-flash-lite',
       }),
     ]);
@@ -109,8 +127,16 @@ proxy.post('/generate/image', async (c) => {
         : [],
     };
 
+    // Match extracted characters against the bible for identity injection
+    const matchedCharacters = matchCharacters(extracted.characters, bible);
+
     // Assemble final image prompt with labeled sections and priority ordering
-    prompt = buildImageGenerationPrompt(sceneText, storyContext, extracted);
+    prompt = buildImageGenerationPrompt(
+      sceneText,
+      storyContext,
+      extracted,
+      matchedCharacters.length > 0 ? matchedCharacters : undefined
+    );
 
     const result = await generateImage({
       prompt,

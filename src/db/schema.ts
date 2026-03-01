@@ -26,6 +26,7 @@ export const refreshTokens = pgTable(
   },
   (table) => ({
     tokenHashIdx: index('idx_refresh_tokens_token_hash').on(table.tokenHash),
+    userIdIdx: index('idx_refresh_tokens_user_id').on(table.userId),
   })
 );
 
@@ -180,6 +181,29 @@ export const creatorProfiles = pgTable('creator_profiles', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
+// ---------- Character Bible ----------
+
+export const characterBible = pgTable(
+  'character_bible',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    timelineId: uuid('timeline_id')
+      .references(() => timelines.id, { onDelete: 'cascade' })
+      .notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    appearanceGuide: text('appearance_guide'),
+    referenceImageUrl: text('reference_image_url'),
+    aliases: text('aliases').array(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    timelineIdIdx: index('idx_character_bible_timeline_id').on(table.timelineId),
+    uniqueTimelineName: unique().on(table.timelineId, table.name),
+  })
+);
+
 // ---------- Relations ----------
 
 export const usersRelations = relations(users, ({ many, one }) => ({
@@ -191,6 +215,7 @@ export const timelinesRelations = relations(timelines, ({ one, many }) => ({
   user: one(users, { fields: [timelines.userId], references: [users.id] }),
   nodes: many(timelineNodes),
   branches: many(branches),
+  characters: many(characterBible),
 }));
 
 export const timelineNodesRelations = relations(timelineNodes, ({ one, many }) => ({
@@ -211,6 +236,10 @@ export const branchesRelations = relations(branches, ({ one }) => ({
 
 export const branchCanonRelations = relations(branchCanon, ({ one }) => ({
   branch: one(branches, { fields: [branchCanon.branchId], references: [branches.id] }),
+}));
+
+export const characterBibleRelations = relations(characterBible, ({ one }) => ({
+  timeline: one(timelines, { fields: [characterBible.timelineId], references: [timelines.id] }),
 }));
 
 export const creatorProfilesRelations = relations(creatorProfiles, ({ one }) => ({
@@ -237,3 +266,5 @@ export type BranchCanon = typeof branchCanon.$inferSelect;
 export type NewBranchCanon = typeof branchCanon.$inferInsert;
 export type CreatorProfile = typeof creatorProfiles.$inferSelect;
 export type NewCreatorProfile = typeof creatorProfiles.$inferInsert;
+export type CharacterBibleEntry = typeof characterBible.$inferSelect;
+export type NewCharacterBibleEntry = typeof characterBible.$inferInsert;
