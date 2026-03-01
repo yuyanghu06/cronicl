@@ -37,107 +37,112 @@ export function EditorPage() {
   const generatingRef = useRef(new Set<string>());
   const pollTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
-  // --- Job polling helper ---
+  // --- Job polling helper (returns a Promise that resolves when done) ---
 
-  const pollJob = useCallback((jobId: string, nodeId: string) => {
+  const pollJob = useCallback((jobId: string, nodeId: string): Promise<void> => {
     const POLL_INTERVAL = 3000;
     const MAX_POLL_TIME = 120_000; // 2 minutes
     const startTime = Date.now();
 
-    const tick = async () => {
-      if (abortRef.current) {
-        pollTimersRef.current.delete(nodeId);
-        return;
-      }
+    return new Promise<void>((resolve) => {
+      const tick = async () => {
+        if (abortRef.current) {
+          pollTimersRef.current.delete(nodeId);
+          resolve();
+          return;
+        }
 
-      try {
-        const res = await api.get<{
-          jobId: string;
-          nodeId: string;
-          status: string;
-          error?: string;
-        }>(`/api/jobs/images/jobs/${jobId}`);
+        try {
+          const res = await api.get<{
+            jobId: string;
+            nodeId: string;
+            status: string;
+            error?: string;
+          }>(`/api/jobs/images/jobs/${jobId}`);
 
-        if (res.status === "completed") {
-          // Fetch image from DB
-          const tid = timelineIdRef.current;
-          if (tid) {
-            try {
-              const images = await api.get<{ id: string; imageUrl: string }[]>(
-                `/api/timelines/${tid}/nodes/images`
-              );
-              const img = images.find((i) => i.id === nodeId);
-              if (img) {
+          if (res.status === "completed") {
+            const tid = timelineIdRef.current;
+            if (tid) {
+              try {
+                const images = await api.get<{ id: string; imageUrl: string }[]>(
+                  `/api/timelines/${tid}/nodes/images`
+                );
+                const img = images.find((i) => i.id === nodeId);
+                if (img) {
+                  setNodes((prev) =>
+                    prev.map((n) =>
+                      n.id === nodeId
+                        ? { ...n, imageUrl: img.imageUrl, status: "draft" as const }
+                        : n
+                    )
+                  );
+                }
+              } catch {
                 setNodes((prev) =>
                   prev.map((n) =>
-                    n.id === nodeId
-                      ? { ...n, imageUrl: img.imageUrl, status: "draft" as const }
-                      : n
+                    n.id === nodeId ? { ...n, status: "draft" as const } : n
                   )
                 );
               }
-            } catch {
-              // Image fetch failed, revert to draft
-              setNodes((prev) =>
-                prev.map((n) =>
-                  n.id === nodeId ? { ...n, status: "draft" as const } : n
-                )
-              );
             }
+            generatingRef.current.delete(nodeId);
+            pollTimersRef.current.delete(nodeId);
+            resolve();
+            return;
           }
-          generatingRef.current.delete(nodeId);
-          pollTimersRef.current.delete(nodeId);
-          return;
-        }
 
-        if (res.status === "failed") {
-          console.error(`[Image] Job ${jobId} failed:`, res.error);
-          setNodes((prev) =>
-            prev.map((n) =>
-              n.id === nodeId ? { ...n, status: "draft" as const } : n
-            )
-          );
-          generatingRef.current.delete(nodeId);
-          pollTimersRef.current.delete(nodeId);
-          return;
-        }
+          if (res.status === "failed") {
+            console.error(`[Image] Job ${jobId} failed:`, res.error);
+            setNodes((prev) =>
+              prev.map((n) =>
+                n.id === nodeId ? { ...n, status: "draft" as const } : n
+              )
+            );
+            generatingRef.current.delete(nodeId);
+            pollTimersRef.current.delete(nodeId);
+            resolve();
+            return;
+          }
 
-        // Still in progress — check timeout
-        if (Date.now() - startTime > MAX_POLL_TIME) {
-          console.warn(`[Image] Job ${jobId} timed out after ${MAX_POLL_TIME / 1000}s`);
-          setNodes((prev) =>
-            prev.map((n) =>
-              n.id === nodeId ? { ...n, status: "draft" as const } : n
-            )
-          );
-          generatingRef.current.delete(nodeId);
-          pollTimersRef.current.delete(nodeId);
-          return;
-        }
+          // Still in progress — check timeout
+          if (Date.now() - startTime > MAX_POLL_TIME) {
+            console.warn(`[Image] Job ${jobId} timed out after ${MAX_POLL_TIME / 1000}s`);
+            setNodes((prev) =>
+              prev.map((n) =>
+                n.id === nodeId ? { ...n, status: "draft" as const } : n
+              )
+            );
+            generatingRef.current.delete(nodeId);
+            pollTimersRef.current.delete(nodeId);
+            resolve();
+            return;
+          }
 
-        // Schedule next poll
-        const timer = setTimeout(tick, POLL_INTERVAL);
-        pollTimersRef.current.set(nodeId, timer);
-      } catch {
-        // Network error — retry polling
-        if (Date.now() - startTime < MAX_POLL_TIME) {
+          // Schedule next poll
           const timer = setTimeout(tick, POLL_INTERVAL);
           pollTimersRef.current.set(nodeId, timer);
-        } else {
-          setNodes((prev) =>
-            prev.map((n) =>
-              n.id === nodeId ? { ...n, status: "draft" as const } : n
-            )
-          );
-          generatingRef.current.delete(nodeId);
-          pollTimersRef.current.delete(nodeId);
+        } catch {
+          // Network error — retry polling
+          if (Date.now() - startTime < MAX_POLL_TIME) {
+            const timer = setTimeout(tick, POLL_INTERVAL);
+            pollTimersRef.current.set(nodeId, timer);
+          } else {
+            setNodes((prev) =>
+              prev.map((n) =>
+                n.id === nodeId ? { ...n, status: "draft" as const } : n
+              )
+            );
+            generatingRef.current.delete(nodeId);
+            pollTimersRef.current.delete(nodeId);
+            resolve();
+          }
         }
-      }
-    };
+      };
 
-    // Start first poll after interval
-    const timer = setTimeout(tick, POLL_INTERVAL);
-    pollTimersRef.current.set(nodeId, timer);
+      // Start first poll after interval
+      const timer = setTimeout(tick, POLL_INTERVAL);
+      pollTimersRef.current.set(nodeId, timer);
+    });
   }, []);
 
   // Clean up poll timers on unmount
@@ -221,8 +226,8 @@ export function EditorPage() {
         }
         generatingRef.current.delete(nodeId);
       } else if (res.status === "queued" && res.jobId) {
-        // Start polling
-        pollJob(res.jobId, nodeId);
+        // Poll until done (awaitable — callers can serialize)
+        await pollJob(res.jobId, nodeId);
       } else {
         // Unexpected status
         setNodes((prev) =>
@@ -292,14 +297,16 @@ export function EditorPage() {
         }
 
         // 3. Auto-generate images for nodes that still don't have one
-        // Submit each missing node individually — queue rate limiter handles pacing
+        // Generate sequentially: node 1 finishes → node 2 starts → etc.
         setNodes((prev) => {
           const missing = prev.filter((n) => !n.imageUrl);
           if (missing.length > 0 && !cancelled && !abortRef.current) {
-            for (const node of missing) {
-              if (cancelled || abortRef.current) break;
-              generateImageForNode(node.id);
-            }
+            (async () => {
+              for (const node of missing) {
+                if (cancelled || abortRef.current) break;
+                await generateImageForNode(node.id);
+              }
+            })();
           }
           return prev;
         });
