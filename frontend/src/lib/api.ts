@@ -184,6 +184,12 @@ export function deleteNode(timelineId: string, nodeId: string) {
   );
 }
 
+export function getNodeImages(timelineId: string) {
+  return request<{ id: string; imageUrl: string }[]>(
+    `/api/timelines/${timelineId}/nodes/images`
+  );
+}
+
 // ---------- AI endpoints ----------
 
 export function suggestFromTimeline(data: {

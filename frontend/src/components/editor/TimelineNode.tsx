@@ -1,6 +1,5 @@
 import { cn } from "@/lib/cn";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
-import { CourierText } from "@/components/ui/CourierText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { Badge } from "@/components/ui/Badge";
 import { StoryboardFrame } from "./StoryboardFrame";
@@ -29,41 +28,19 @@ export function TimelineNode({ node, isSelected, onClick }: TimelineNodeProps) {
     >
       {/* Storyboard frame */}
       <StoryboardFrame
+        imageUrl={node.imageUrl}
         status={node.status === "generating" ? "generating" : "pending"}
       />
 
       {/* Node content */}
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <DotMatrixText className="text-[11px] text-fg-dim">
-            {node.id}
-          </DotMatrixText>
-          {node.status === "generating" && (
-            <Badge variant="generating">GEN</Badge>
-          )}
-          {node.type === "branch" && (
-            <Badge variant="active">BRANCH</Badge>
-          )}
-          {node.type === "merge" && (
-            <Badge variant="active">MERGE</Badge>
-          )}
-        </div>
-
+      <div className="p-3">
         {/* Label */}
-        {node.type === "chapter" && (
-          <DotMatrixText
-            as="div"
-            className="text-xs text-fg-bright mb-2 tracking-[0.15em]"
-          >
-            {node.label}
-          </DotMatrixText>
-        )}
-
-        {/* Plot summary */}
-        <CourierText className="text-xs text-fg-dim leading-relaxed line-clamp-3 mb-3">
-          {node.plotSummary}
-        </CourierText>
+        <DotMatrixText
+          as="div"
+          className="text-xs text-fg-bright mb-2 tracking-[0.15em] line-clamp-2"
+        >
+          {node.label}
+        </DotMatrixText>
 
         {/* Divider + metadata */}
         <div className="h-px bg-border-subtle mb-2" />
@@ -75,6 +52,12 @@ export function TimelineNode({ node, isSelected, onClick }: TimelineNodeProps) {
           </SyntMonoText>
           <SyntMonoText className="text-[10px] text-fg-muted">//</SyntMonoText>
           <SyntMonoText className="text-[10px]">{node.status}</SyntMonoText>
+          {node.status === "generating" && (
+            <Badge variant="generating">GEN</Badge>
+          )}
+          {node.type === "branch" && (
+            <Badge variant="active">BRANCH</Badge>
+          )}
         </div>
       </div>
     </div>

@@ -2,11 +2,12 @@ import { useState, useCallback } from "react";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
 
 interface StoryboardFrameProps {
+  imageUrl?: string | null;
   status: "pending" | "generating";
   onGenerate?: () => void;
 }
 
-export function StoryboardFrame({ status, onGenerate }: StoryboardFrameProps) {
+export function StoryboardFrame({ imageUrl, status, onGenerate }: StoryboardFrameProps) {
   const [localState, setLocalState] = useState<
     "idle" | "generating" | "complete"
   >("idle");
@@ -25,19 +26,25 @@ export function StoryboardFrame({ status, onGenerate }: StoryboardFrameProps) {
   );
 
   const isGenerating = status === "generating" || localState === "generating";
+  const hasImage = !!imageUrl;
 
   return (
-    <div className="w-full h-20 bg-bg-void relative flex items-center justify-center">
+    <div className="w-full h-36 bg-bg-void relative flex items-center justify-center overflow-hidden">
       {/* Film-frame corner markers */}
-      <span className="absolute top-1.5 left-1.5 w-2 h-2 border-l border-t border-fg-muted/30" />
-      <span className="absolute top-1.5 right-1.5 w-2 h-2 border-r border-t border-fg-muted/30" />
-      <span className="absolute bottom-1.5 left-1.5 w-2 h-2 border-l border-b border-fg-muted/30" />
-      <span className="absolute bottom-1.5 right-1.5 w-2 h-2 border-r border-b border-fg-muted/30" />
+      <span className="absolute top-1.5 left-1.5 w-2 h-2 border-l border-t border-fg-muted/30 z-10" />
+      <span className="absolute top-1.5 right-1.5 w-2 h-2 border-r border-t border-fg-muted/30 z-10" />
+      <span className="absolute bottom-1.5 left-1.5 w-2 h-2 border-l border-b border-fg-muted/30 z-10" />
+      <span className="absolute bottom-1.5 right-1.5 w-2 h-2 border-r border-b border-fg-muted/30 z-10" />
 
       {/* Content */}
-      {isGenerating ? (
+      {hasImage ? (
+        <img
+          src={imageUrl}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : isGenerating ? (
         <>
-          {/* Scanline sweep */}
           <div
             className="absolute inset-0 overflow-hidden pointer-events-none"
           >
@@ -51,7 +58,6 @@ export function StoryboardFrame({ status, onGenerate }: StoryboardFrameProps) {
           </DotMatrixText>
         </>
       ) : localState === "complete" ? (
-        /* Cinematic placeholder gradient */
         <div className="absolute inset-0 bg-gradient-to-br from-bg-raised via-bg-hover to-bg-active" />
       ) : (
         <DotMatrixText className="text-[10px] text-fg-muted">
@@ -60,10 +66,10 @@ export function StoryboardFrame({ status, onGenerate }: StoryboardFrameProps) {
       )}
 
       {/* GEN button */}
-      {!isGenerating && localState !== "complete" && (
+      {!hasImage && !isGenerating && localState !== "complete" && (
         <button
           onClick={handleGenerate}
-          className="absolute bottom-1.5 right-1.5 font-display text-[9px] uppercase tracking-widest text-fg-muted hover:text-red bg-bg-raised/80 border border-border-subtle rounded px-1.5 py-0.5 cursor-pointer transition-colors"
+          className="absolute bottom-1.5 right-1.5 font-display text-[9px] uppercase tracking-widest text-fg-muted hover:text-red bg-bg-raised/80 border border-border-subtle rounded px-1.5 py-0.5 cursor-pointer transition-colors z-10"
         >
           GEN
         </button>

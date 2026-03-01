@@ -11,6 +11,7 @@ export function apiNodesToFrontend(apiNodes: ApiNode[]): TimelineNode[] {
     parentId: n.parentId,
     label: n.label ?? n.title,
     plotSummary: n.content ?? "",
+    imageUrl: null,
     metadata: {
       createdAt: n.createdAt,
       wordCount: (n.content ?? "").split(/\s+/).filter(Boolean).length,

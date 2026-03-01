@@ -3,6 +3,7 @@ export interface TimelineNode {
   parentId: string | null;
   label: string;
   plotSummary: string;
+  imageUrl?: string | null;
   metadata: NodeMetadata;
   position: { x: number; y: number };
   connections: string[];

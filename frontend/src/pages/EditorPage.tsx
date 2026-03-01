@@ -10,6 +10,7 @@ import { GitBranch, Save } from "lucide-react";
 import type { TimelineNode } from "@/types/node";
 import {
   getTimeline,
+  getNodeImages,
   updateNode as apiUpdateNode,
   createNode as apiCreateNode,
   suggestFromTimeline,
@@ -35,7 +36,7 @@ export function EditorPage() {
     setError(null);
 
     getTimeline(projectId)
-      .then((timeline) => {
+      .then(async (timeline) => {
         if (cancelled) return;
         setTimelineId(timeline.id);
         setTimelineTitle(timeline.title);
@@ -43,6 +44,20 @@ export function EditorPage() {
         const frontendNodes = apiNodesToFrontend(timeline.nodes ?? []);
         setNodes(frontendNodes);
         setLoading(false);
+
+        // Lazy-load node images
+        try {
+          const images = await getNodeImages(timeline.id);
+          if (cancelled || images.length === 0) return;
+          const imageMap = new Map(images.map((i) => [i.id, i.imageUrl]));
+          setNodes((prev) =>
+            prev.map((n) =>
+              imageMap.has(n.id) ? { ...n, imageUrl: imageMap.get(n.id) } : n
+            )
+          );
+        } catch {
+          // Images are non-critical; silently ignore
+        }
       })
       .catch((err) => {
         if (cancelled) return;
