@@ -15,7 +15,7 @@ export const GhostNode = React.memo(function GhostNode({ ghost, onClick }: Ghost
     <div
       data-node
       onClick={onClick}
-      className="w-60 opacity-60 bg-bg-raised border border-dashed border-red/40 rounded-2xl cursor-pointer transition-all duration-200 select-none overflow-hidden hover:opacity-80 hover:border-red/60"
+      className="w-80 opacity-60 bg-bg-raised border border-dashed border-red/40 rounded-2xl cursor-pointer transition-all duration-200 select-none overflow-hidden hover:opacity-80 hover:border-red/60"
     >
       <div className="p-4">
         {/* Header */}

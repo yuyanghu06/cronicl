@@ -18,7 +18,7 @@ export const TimelineNode = React.memo(function TimelineNode({ node, isSelected,
     <div
       onClick={onClick}
       className={cn(
-        "w-60 bg-bg-raised border rounded-2xl cursor-pointer transition-all duration-200 select-none overflow-hidden",
+        "w-80 bg-bg-raised border rounded-2xl cursor-pointer transition-all duration-200 select-none overflow-hidden",
         isSelected
           ? "border-red shadow-glow-red"
           : "border-border-subtle hover:border-border-strong"

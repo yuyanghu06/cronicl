@@ -16,7 +16,7 @@ export function StoryboardFrame({ status, imageUrl, onGenerate }: StoryboardFram
   };
 
   return (
-    <div className="w-full h-20 bg-bg-void relative flex items-center justify-center overflow-hidden">
+    <div className="w-full aspect-video bg-bg-void relative flex items-center justify-center overflow-hidden">
       {/* Film-frame corner markers — always visible */}
       <span className="absolute top-1.5 left-1.5 w-2 h-2 border-l border-t border-fg-muted/30 z-10" />
       <span className="absolute top-1.5 right-1.5 w-2 h-2 border-r border-t border-fg-muted/30 z-10" />

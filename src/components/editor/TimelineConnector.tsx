@@ -45,8 +45,8 @@ export function TimelineConnector({ nodes, ghostConnections }: TimelineConnector
   if (paths.length === 0 && !hasGhosts) return null;
 
   // Node card dimensions
-  const nodeWidth = 240;
-  const nodeHeight = 240;
+  const nodeWidth = 320;
+  const nodeHeight = 220;
 
   return (
     <svg
