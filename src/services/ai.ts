@@ -27,7 +27,7 @@ function logRequest(endpoint: string, model: string, prompt: string) {
   console.log(`[Gemini API] Request to ${endpoint}`);
   console.log(`[Gemini API] Model: ${model}`);
   console.log(`[Gemini API] Prompt length: ${prompt.length} chars`);
-  console.log(`[Gemini API] Prompt preview: ${prompt.slice(0, 200)}...`);
+  console.log(`[Gemini API] Prompt preview: ${prompt.slice(0, 600)}...`);
 }
 
 function logResponse(endpoint: string, status: number, body?: string) {
