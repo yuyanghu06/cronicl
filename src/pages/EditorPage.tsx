@@ -31,7 +31,7 @@ export function EditorPage() {
 
   // --- Image generation ---
 
-  const generateImageForNode = useCallback(async (nodeId: string) => {
+  const generateImageForNode = useCallback(async (nodeId: string, context?: string) => {
     if (generatingRef.current.has(nodeId)) return;
     generatingRef.current.add(nodeId);
 
@@ -48,6 +48,7 @@ export function EditorPage() {
     });
 
     if (!prompt) prompt = "A cinematic storyboard frame";
+    if (context) prompt = `PRECEDING SCENE CONTEXT:\n${context}\n\nCURRENT SCENE:\n${prompt}`;
 
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -255,9 +256,17 @@ export function EditorPage() {
       status: "draft",
     };
 
+    // Capture context from selected node before we change selection
+    const contextNode = selectedNodeId
+      ? nodes.find((n) => n.id === selectedNodeId)
+      : nodes.length > 0
+        ? nodes.reduce((a, b) => (b.position.x > a.position.x ? b : a))
+        : null;
+    const context = contextNode?.plotSummary || undefined;
+
     setNodes((prev) => [...prev, newNode]);
     setSelectedNodeId(newNodeId);
-    generateImageForNode(newNodeId);
+    generateImageForNode(newNodeId, context);
   };
 
   const onGenerateBranch = async (fromNodeId: string, description: string) => {
@@ -331,8 +340,8 @@ export function EditorPage() {
 
     setSelectedNodeId(newNodeId);
 
-    // Auto-generate image for the new branch node
-    generateImageForNode(newNodeId);
+    // Auto-generate image for the new branch node with parent context
+    generateImageForNode(newNodeId, fromNode.plotSummary || undefined);
   };
 
   return (
