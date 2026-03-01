@@ -95,9 +95,18 @@ Generate a visually striking image that matches the genre, tone, and world descr
       }
     }
 
-    // Extract characters from scene text for consistent storyboard depiction
-    try {
-      const extraction = await generateStructuredText<{ characters: string[] }>({
+    // Extract setting and characters from scene text in parallel
+    const [settingResult, characterResult] = await Promise.allSettled([
+      generateStructuredText<{ setting: string }>({
+        prompt: `Extract the physical setting/location/environment from this scene. Describe WHERE the scene takes place in one vivid, specific sentence (e.g. "A rain-soaked neon-lit alleyway in a cyberpunk megacity at night"). If no setting is described, infer the most likely environment from context.
+
+Return JSON: {"setting": "..."}
+
+Scene text:
+${sceneText}`,
+        model: 'gemini-2.5-flash-lite',
+      }),
+      generateStructuredText<{ characters: string[] }>({
         prompt: `Extract the names of all characters (people, named entities) who are physically present or actively participating in this scene. Return ONLY characters who appear in the text. If no characters are mentioned, return an empty array.
 
 Return JSON: {"characters": ["Name1", "Name2"]}
@@ -105,15 +114,25 @@ Return JSON: {"characters": ["Name1", "Name2"]}
 Scene text:
 ${sceneText}`,
         model: 'gemini-2.5-flash-lite',
-      });
-      const chars = extraction.data.characters ?? [];
+      }),
+    ]);
+
+    // Setting is mandatory — always include it
+    if (settingResult.status === 'fulfilled') {
+      const setting = settingResult.value.data.setting;
+      if (setting) {
+        prompt += `\n\nSETTING (MANDATORY — the image MUST depict this environment): ${setting}`;
+      }
+    }
+
+    // Characters
+    if (characterResult.status === 'fulfilled') {
+      const chars = characterResult.value.data.characters ?? [];
       if (chars.length > 0) {
         prompt += `\n\nCHARACTERS IN THIS SCENE: ${chars.join(', ')}.\nDepict ONLY these characters. Do NOT include any other people or characters not listed above.`;
       } else {
         prompt += `\n\nNo named characters are present in this scene. Do NOT include any identifiable people or characters.`;
       }
-    } catch {
-      // Character extraction failed — proceed without character directives
     }
 
     const result = await generateImage({
