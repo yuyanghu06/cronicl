@@ -12,9 +12,10 @@ interface NodePanelProps {
   node: TimelineNode;
   onSave: (nodeId: string, updates: { label: string; plotSummary: string }) => void | Promise<void>;
   onGenerateBranch: (fromNodeId: string, description: string) => void | Promise<void>;
+  onPreviewImage?: () => void;
 }
 
-export function NodePanel({ node, onSave, onGenerateBranch }: NodePanelProps) {
+export function NodePanel({ node, onSave, onGenerateBranch, onPreviewImage }: NodePanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("EDIT");
 
   // Reset to EDIT tab on node change
@@ -26,6 +27,21 @@ export function NodePanel({ node, onSave, onGenerateBranch }: NodePanelProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Image preview */}
+      {node.imageUrl && (
+        <button
+          type="button"
+          onClick={onPreviewImage}
+          className="w-full mb-4 rounded-lg overflow-hidden cursor-pointer bg-transparent border-none p-0 group"
+        >
+          <img
+            src={node.imageUrl}
+            alt=""
+            className="w-full h-[180px] object-cover rounded-lg transition-[filter] duration-200 group-hover:brightness-110"
+          />
+        </button>
+      )}
+
       {/* Node header */}
       <div className="mb-4">
         <DotMatrixText as="h2" className="text-lg text-fg-max mb-1">

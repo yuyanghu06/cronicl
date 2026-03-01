@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SidePanel } from "@/components/layout/SidePanel";
 import { TimelineCanvas } from "@/components/editor/TimelineCanvas";
 import { NodePanel } from "@/components/editor/NodePanel";
+import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { CourierText } from "@/components/ui/CourierText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { GitBranch, Save } from "lucide-react";
@@ -20,6 +21,7 @@ import { DEMO_PROJECT_ID, DEMO_PROJECT, DEMO_TIMELINE } from "@/data/demo";
 export function EditorPage() {
   const { projectId } = useParams();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [nodes, setNodes] = useState<TimelineNode[]>([]);
   const [projectName, setProjectName] = useState("LOADING...");
   const [isLoading, setIsLoading] = useState(true);
@@ -287,6 +289,7 @@ export function EditorPage() {
               node={selectedNode}
               onSave={onSaveNode}
               onGenerateBranch={onGenerateBranch}
+              onPreviewImage={() => setLightboxUrl(selectedNode.imageUrl ?? null)}
             />
           )}
         </SidePanel>
@@ -302,6 +305,10 @@ export function EditorPage() {
           </div>
         </div>
       )}
+      <ImageLightbox
+        imageUrl={lightboxUrl}
+        onClose={() => setLightboxUrl(null)}
+      />
     </AppShell>
   );
 }
