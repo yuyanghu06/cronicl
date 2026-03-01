@@ -112,6 +112,7 @@ export function EditorPage() {
     let cancelled = false;
     (async () => {
       try {
+        // 1. Load structure (fast — no image blobs in response)
         const timeline = await api.get<BackendTimeline>(`/api/timelines/${projectId}`);
         if (cancelled) return;
 
@@ -122,14 +123,41 @@ export function EditorPage() {
         setNodes(mapped);
         setIsLoading(false);
 
-        // Auto-generate images for nodes that don't have one
-        const missing = mapped.filter((n) => !n.imageUrl);
-        for (const node of missing) {
-          if (cancelled || abortRef.current) break;
-          await generateImageForNode(node.id);
-          // Respect rate limits (~10 req/min → ~6s gap, use 1.5s as conservative)
-          await new Promise((r) => setTimeout(r, 1500));
+        // 2. Lazy-load images from DB
+        try {
+          const images = await api.get<{ id: string; imageUrl: string }[]>(
+            `/api/timelines/${timeline.id}/nodes/images`
+          );
+          if (cancelled) return;
+
+          if (images.length > 0) {
+            const imageMap = new Map(images.map((img) => [img.id, img.imageUrl]));
+            setNodes((prev) =>
+              prev.map((n) => {
+                const url = imageMap.get(n.id);
+                return url ? { ...n, imageUrl: url } : n;
+              })
+            );
+          }
+        } catch {
+          // Images failed to load — nodes still render without them
         }
+
+        // 3. Auto-generate images for nodes that still don't have one
+        // Re-read from state via a ref-friendly approach
+        setNodes((prev) => {
+          const missing = prev.filter((n) => !n.imageUrl);
+          if (missing.length > 0 && !cancelled && !abortRef.current) {
+            (async () => {
+              for (const node of missing) {
+                if (cancelled || abortRef.current) break;
+                await generateImageForNode(node.id);
+                await new Promise((r) => setTimeout(r, 1500));
+              }
+            })();
+          }
+          return prev;
+        });
       } catch {
         if (cancelled) return;
         setProjectName("Unknown Project");
