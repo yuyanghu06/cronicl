@@ -1,3 +1,4 @@
+import React from "react";
 import { cn } from "@/lib/cn";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { CourierText } from "@/components/ui/CourierText";
@@ -13,7 +14,7 @@ interface TimelineNodeProps {
   onGenerateImage?: (nodeId: string) => void;
 }
 
-export function TimelineNode({ node, isSelected, onClick, onGenerateImage }: TimelineNodeProps) {
+export const TimelineNode = React.memo(function TimelineNode({ node, isSelected, onClick, onGenerateImage }: TimelineNodeProps) {
   return (
     <div
       onClick={onClick}
@@ -78,4 +79,4 @@ export function TimelineNode({ node, isSelected, onClick, onGenerateImage }: Tim
       </div>
     </div>
   );
-}
+});

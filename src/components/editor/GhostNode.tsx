@@ -1,3 +1,4 @@
+import React from "react";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { CourierText } from "@/components/ui/CourierText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
@@ -9,7 +10,7 @@ interface GhostNodeProps {
   onClick: () => void;
 }
 
-export function GhostNode({ ghost, onClick }: GhostNodeProps) {
+export const GhostNode = React.memo(function GhostNode({ ghost, onClick }: GhostNodeProps) {
   return (
     <div
       data-node
@@ -46,4 +47,4 @@ export function GhostNode({ ghost, onClick }: GhostNodeProps) {
       </div>
     </div>
   );
-}
+});

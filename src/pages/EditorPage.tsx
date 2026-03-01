@@ -66,6 +66,9 @@ export function EditorPage() {
         );
         if (abortRef.current) return;
 
+        const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+        if (!ALLOWED_IMAGE_TYPES.includes(res.mimeType)) continue;
+
         const dataUrl = `data:${res.mimeType};base64,${res.image}`;
 
         setNodes((prev) =>
@@ -185,7 +188,7 @@ export function EditorPage() {
     [nodes, selectedNodeId]
   );
 
-  const onSaveNode = (nodeId: string, updates: { label: string; plotSummary: string }) => {
+  const onSaveNode = useCallback((nodeId: string, updates: { label: string; plotSummary: string }) => {
     setNodes(prev =>
       prev.map(n =>
         n.id === nodeId
@@ -202,9 +205,9 @@ export function EditorPage() {
 
     // Regenerate storyboard image to reflect updated text
     generateImageForNode(nodeId);
-  };
+  }, [generateImageForNode]);
 
-  const onDeleteNode = async (nodeId: string) => {
+  const onDeleteNode = useCallback(async (nodeId: string) => {
     const tid = timelineIdRef.current;
     if (tid) {
       try {
@@ -216,9 +219,9 @@ export function EditorPage() {
     }
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setSelectedNodeId(null);
-  };
+  }, []);
 
-  const onAddNode = async () => {
+  const onAddNode = useCallback(async () => {
     const tid = timelineIdRef.current;
     if (!tid) return;
 
@@ -274,9 +277,9 @@ export function EditorPage() {
     setNodes((prev) => [...prev, newNode]);
     setSelectedNodeId(newNodeId);
     generateImageForNode(newNodeId, context);
-  };
+  }, [nodes, selectedNodeId, generateImageForNode]);
 
-  const onGenerateBranch = async (fromNodeId: string, description: string) => {
+  const onGenerateBranch = useCallback(async (fromNodeId: string, description: string) => {
     const fromNode = nodes.find((n) => n.id === fromNodeId);
     if (!fromNode) return;
 
@@ -349,7 +352,7 @@ export function EditorPage() {
 
     // Auto-generate image for the new branch node with parent context
     generateImageForNode(newNodeId, fromNode.plotSummary || undefined);
-  };
+  }, [nodes, generateImageForNode]);
 
   // --- Suggestion handlers ---
 

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { TimelineNode } from "@/types/node";
 
 export interface GhostConnection {
@@ -11,31 +12,37 @@ interface TimelineConnectorProps {
 }
 
 export function TimelineConnector({ nodes, ghostConnections }: TimelineConnectorProps) {
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-  const paths: { from: TimelineNode; to: TimelineNode }[] = [];
+  const nodeMap = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
-  for (const node of nodes) {
-    for (const connId of node.connections) {
-      const target = nodeMap.get(connId);
-      if (target) {
-        paths.push({ from: node, to: target });
+  const paths = useMemo(() => {
+    const result: { from: TimelineNode; to: TimelineNode }[] = [];
+    for (const node of nodes) {
+      for (const connId of node.connections) {
+        const target = nodeMap.get(connId);
+        if (target) {
+          result.push({ from: node, to: target });
+        }
       }
     }
-  }
+    return result;
+  }, [nodes, nodeMap]);
+
+  const { maxX, maxY } = useMemo(() => {
+    let mx = nodes.length > 0 ? Math.max(...nodes.map((n) => n.position.x)) + 500 : 500;
+    let my = nodes.length > 0 ? Math.max(...nodes.map((n) => n.position.y)) + 500 : 500;
+
+    if (ghostConnections) {
+      for (const gc of ghostConnections) {
+        mx = Math.max(mx, gc.toPosition.x + 500);
+        my = Math.max(my, gc.toPosition.y + 500);
+      }
+    }
+
+    return { maxX: mx, maxY: my };
+  }, [nodes, ghostConnections]);
 
   const hasGhosts = ghostConnections && ghostConnections.length > 0;
   if (paths.length === 0 && !hasGhosts) return null;
-
-  let maxX = nodes.length > 0 ? Math.max(...nodes.map((n) => n.position.x)) + 500 : 500;
-  let maxY = nodes.length > 0 ? Math.max(...nodes.map((n) => n.position.y)) + 500 : 500;
-
-  // Extend SVG bounds for ghost connections
-  if (ghostConnections) {
-    for (const gc of ghostConnections) {
-      maxX = Math.max(maxX, gc.toPosition.x + 500);
-      maxY = Math.max(maxY, gc.toPosition.y + 500);
-    }
-  }
 
   // Node card dimensions
   const nodeWidth = 240;

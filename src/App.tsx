@@ -1,12 +1,14 @@
+import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 import { AuthProvider, ProtectedRoute, useAuth } from "@/lib/auth.tsx";
-import { LandingPage } from "@/pages/LandingPage";
-import { LoginPage } from "@/pages/LoginPage";
-import { RegisterPage } from "@/pages/RegisterPage";
-import { HomePage } from "@/pages/HomePage";
-import { EditorPage } from "@/pages/EditorPage";
-import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
-import { ProfilePage } from "@/pages/ProfilePage";
+
+const LandingPage = React.lazy(() => import("@/pages/LandingPage").then(m => ({ default: m.LandingPage })));
+const LoginPage = React.lazy(() => import("@/pages/LoginPage").then(m => ({ default: m.LoginPage })));
+const RegisterPage = React.lazy(() => import("@/pages/RegisterPage").then(m => ({ default: m.RegisterPage })));
+const AuthCallbackPage = React.lazy(() => import("@/pages/AuthCallbackPage").then(m => ({ default: m.AuthCallbackPage })));
+const HomePage = React.lazy(() => import("@/pages/HomePage").then(m => ({ default: m.HomePage })));
+const EditorPage = React.lazy(() => import("@/pages/EditorPage").then(m => ({ default: m.EditorPage })));
+const ProfilePage = React.lazy(() => import("@/pages/ProfilePage").then(m => ({ default: m.ProfilePage })));
 
 function RootRedirect() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -18,6 +20,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/landing" element={<LandingPage />} />
@@ -49,6 +52,7 @@ export default function App() {
             }
           />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );
