@@ -75,7 +75,7 @@ export function PowerOnSequence() {
         <Button
           variant="primary"
           size="lg"
-          onClick={() => navigate("/home")}
+          onClick={() => navigate("/login")}
           className="tracking-[0.25em] text-sm px-12"
         >
           ENTER

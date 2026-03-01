@@ -1,7 +1,8 @@
 import { cn } from "@/lib/cn";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
-import { Settings, User } from "lucide-react";
+import { Settings, LogOut } from "lucide-react";
 import { useNavigate } from "react-router";
+import { useAuth } from "@/contexts/AuthContext";
 import type { ReactNode } from "react";
 
 interface TopBarProps {
@@ -11,6 +12,7 @@ interface TopBarProps {
 
 export function TopBar({ centerContent, rightContent }: TopBarProps) {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   return (
     <header className="h-12 bg-bg-base border-b border-border-subtle flex items-center justify-between px-5 shrink-0">
@@ -34,8 +36,12 @@ export function TopBar({ centerContent, rightContent }: TopBarProps) {
         <button className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none">
           <Settings size={16} strokeWidth={1.5} />
         </button>
-        <button className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none">
-          <User size={16} strokeWidth={1.5} />
+        <button
+          onClick={logout}
+          title="Log out"
+          className="text-fg-muted hover:text-fg-bright transition-colors cursor-pointer bg-transparent border-none"
+        >
+          <LogOut size={16} strokeWidth={1.5} />
         </button>
       </div>
     </header>

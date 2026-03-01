@@ -10,7 +10,7 @@ export function LandingPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
-        navigate("/home");
+        navigate("/login");
       }
     };
     window.addEventListener("keydown", handleKeyDown);

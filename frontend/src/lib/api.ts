@@ -10,10 +10,45 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    }
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `Request failed: ${res.status}`);
   }
   return res.json();
+}
+
+// ---------- Auth ----------
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+}
+
+export function register(data: { email: string; password: string; name?: string }) {
+  return request<{ success: true }>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function login(data: { email: string; password: string }) {
+  return request<{ success: true }>("/auth/login/email", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function logout() {
+  return request<{ success: true }>("/auth/logout", { method: "POST" });
+}
+
+export function getMe() {
+  return request<AuthUser>("/me");
 }
 
 // ---------- Timeline types (backend shapes) ----------
