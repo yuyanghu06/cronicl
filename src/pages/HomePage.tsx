@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { DotMatrixText } from "@/components/ui/DotMatrixText";
 import { SyntMonoText } from "@/components/ui/SyntMonoText";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/ContextMenu";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AIChatRoom } from "@/components/home/AIChatRoom";
 import { api } from "@/lib/api.ts";
 import { mapBackendToProject } from "@/lib/mappers.ts";
@@ -27,6 +28,7 @@ export function HomePage() {
     y: number;
     project: Project;
   } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
   const handleProjectContextMenu = useCallback(
     (e: React.MouseEvent, project: Project) => {
@@ -39,21 +41,23 @@ export function HomePage() {
   );
 
   const handleDeleteProject = useCallback(
-    async (project: Project) => {
-      const confirmed = window.confirm(
-        `Delete "${project.name}"? This cannot be undone.`
-      );
-      if (!confirmed) return;
-
-      try {
-        await api.delete(`/api/timelines/${project.id}`);
-        setProjects((prev) => prev.filter((p) => p.id !== project.id));
-      } catch {
-        // silently fail — project may already be deleted
-      }
+    (project: Project) => {
+      setDeleteTarget(project);
     },
     []
   );
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    try {
+      await api.delete(`/api/timelines/${deleteTarget.id}`);
+      setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+    } catch {
+      // silently fail — project may already be deleted
+    } finally {
+      setDeleteTarget(null);
+    }
+  }, [deleteTarget]);
 
   const getContextMenuItems = useCallback(
     (project: Project): ContextMenuItem[] => [
@@ -188,6 +192,15 @@ export function HomePage() {
           onClose={() => setContextMenu(null)}
         />
       )}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete Project"
+        message={`"${deleteTarget?.name ?? ""}" will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </AppShell>
   );
 }
