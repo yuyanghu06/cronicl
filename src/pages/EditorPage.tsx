@@ -255,24 +255,35 @@ export function EditorPage() {
 
   // --- Batch image generation ---
 
-  const generateAllImages = useCallback(async () => {
+  const generateAllImages = useCallback(async (explicitNodeIds?: string[]) => {
     const tid = timelineIdRef.current;
     if (!tid) return;
 
-    // Find nodes without images that aren't already generating
-    let missingNodeIds: string[] = [];
-    setNodes((prev) => {
-      missingNodeIds = prev
-        .filter((n) => !n.imageUrl && !generatingRef.current.has(n.id))
-        .map((n) => n.id);
+    let missingNodeIds: string[];
 
-      // Mark them all as generating
-      return prev.map((n) =>
-        missingNodeIds.includes(n.id) ? { ...n, status: "generating" as const } : n
-      );
-    });
+    if (explicitNodeIds && explicitNodeIds.length > 0) {
+      // Caller already knows which nodes need images (e.g. load path)
+      missingNodeIds = explicitNodeIds.filter((id) => !generatingRef.current.has(id));
+    } else {
+      // Compute from current state (e.g. button click)
+      missingNodeIds = [];
+      setNodes((prev) => {
+        missingNodeIds = prev
+          .filter((n) => !n.imageUrl && !generatingRef.current.has(n.id))
+          .map((n) => n.id);
+        return prev;
+      });
+    }
 
     if (missingNodeIds.length === 0) return;
+
+    // Mark them all as generating
+    const missingSet = new Set(missingNodeIds);
+    setNodes((prev) =>
+      prev.map((n) =>
+        missingSet.has(n.id) ? { ...n, status: "generating" as const } : n
+      )
+    );
 
     // Track all as generating
     for (const id of missingNodeIds) generatingRef.current.add(id);
@@ -390,6 +401,7 @@ export function EditorPage() {
           .catch((err) => console.warn('[Editor] Failed to load character bible:', err));
 
         // 3. Lazy-load images from DB
+        let loadedImageIds = new Set<string>();
         try {
           const images = await api.get<{ id: string; imageUrl: string }[]>(
             `/api/timelines/${timeline.id}/nodes/images`
@@ -398,6 +410,7 @@ export function EditorPage() {
 
           if (images.length > 0) {
             const imageMap = new Map(images.map((img) => [img.id, img.imageUrl]));
+            loadedImageIds = new Set(imageMap.keys());
             setNodes((prev) =>
               prev.map((n) => {
                 const url = imageMap.get(n.id);
@@ -409,9 +422,14 @@ export function EditorPage() {
           // Images failed to load — nodes still render without them
         }
 
-        // 3. Auto-generate images for nodes that still don't have one (concurrent)
+        // 4. Auto-generate images only for nodes that truly have no image
         if (!cancelled && !abortRef.current) {
-          generateAllImages();
+          const missingIds = mapped
+            .filter((n) => !loadedImageIds.has(n.id))
+            .map((n) => n.id);
+          if (missingIds.length > 0) {
+            generateAllImages(missingIds);
+          }
         }
       } catch {
         if (cancelled) return;
