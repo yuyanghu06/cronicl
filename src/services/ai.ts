@@ -51,7 +51,7 @@ export async function generateImage(req: GenerateImageRequest): Promise<Generate
     throw new Error('AI provider not configured');
   }
 
-  const model = req.model ?? 'gemini-3.1-flash-image-preview';
+  const model = req.model ?? 'nano-banana-pro-preview';
   const endpoint = `generateContent (image)`;
   const MAX_RETRIES = 2;
 
@@ -63,7 +63,7 @@ export async function generateImage(req: GenerateImageRequest): Promise<Generate
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(90_000),
         body: JSON.stringify({
           contents: [{ parts: [{ text: req.prompt }] }],
           generationConfig: {
