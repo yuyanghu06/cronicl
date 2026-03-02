@@ -136,7 +136,7 @@ export async function generateStructuredText<T>(
     throw new Error('AI provider not configured');
   }
 
-  const model = req.model ?? 'gemini-2.0-flash';
+  const model = req.model ?? 'gemini-2.5-flash';
   const endpoint = `generateContent (structured)`;
   
   logRequest(endpoint, model, req.prompt);
@@ -203,7 +203,7 @@ export async function generateText(req: GenerateTextRequest): Promise<GenerateTe
     throw new Error('AI provider not configured');
   }
 
-  const model = req.model ?? 'gemini-pro';
+  const model = req.model ?? 'gemini-2.5-flash';
   const endpoint = `generateContent (text)`;
   
   logRequest(endpoint, model, req.prompt);
