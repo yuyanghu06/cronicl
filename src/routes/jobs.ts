@@ -24,6 +24,7 @@ jobs.post('/images/generate', async (c) => {
       nodeId: string;
       timelineId: string;
       prompt: string;
+      regenerate?: boolean;
     }>();
 
     // Validate required fields
@@ -61,7 +62,7 @@ jobs.post('/images/generate', async (c) => {
     if (!node) {
       return c.json({ error: 'Node not found' }, 404);
     }
-    if (node.imageUrl) {
+    if (node.imageUrl && !body.regenerate) {
       return c.json({ status: 'already_exists', nodeId: body.nodeId });
     }
 
