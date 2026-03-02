@@ -643,7 +643,7 @@ export function EditorPage() {
       try {
         const res = await api.post<{
           ghost_nodes: { title: string; summary: string; tone: string; direction_type: string }[];
-        }>("/api/ai/suggest-from-timeline", {
+        }>("/ai/suggest-from-timeline", {
           timelineId: tid,
           nodeId,
           numSuggestions: 3,
