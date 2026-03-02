@@ -195,6 +195,7 @@ export function EditorPage() {
         nodeId,
         timelineId: tid,
         prompt,
+        regenerate: true,
       });
 
       if (abortRef.current) return;
